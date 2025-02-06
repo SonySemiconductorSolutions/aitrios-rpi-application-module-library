@@ -1,0 +1,54 @@
+name: unittest
+
+on:
+  push:
+  pull_request:
+    branches:
+      - '*'
+
+permissions:
+  contents: read
+  issues: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  test:
+    name: Run unit tests
+    runs-on: ubuntu-latest
+     
+    steps:
+        - name: Checkout code
+          uses: actions/checkout@v4
+          with:
+              fetch-depth: 0
+    
+        - name: Set up Python
+          uses: actions/setup-python@v5
+          with:
+            python-version: '3.10'
+    
+        - name: Install dependencies
+          run: |
+            pip install --upgrade pip
+            pip install poetry
+            poetry install
+        
+        - name: Run tests
+          run: |
+            poetry run pytest --junitxml=pytest.xml -m 'not slow and not aicam' | tee pytest-coverage.txt
+
+        - name: Publish Test Results
+          uses: EnricoMi/publish-unit-test-result-action@v2
+          if: always() && github.event_name != 'pull_request'
+          with:
+            comment_mode: off
+            files: |
+              ./pytest.xml
+          
+        - name: Pytest coverage comment
+          uses: MishaKav/pytest-coverage-comment@main
+          if: always() && github.event_name == 'pull_request'
+          with:
+            pytest-coverage-path: ./pytest-coverage.txt
+            junitxml-path: ./pytest.xml
