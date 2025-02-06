@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en" dir="ltr" class="docs-wrapper plugin-docs plugin-id-api-reference docs-version-current docs-doc-page docs-doc-id-apps/tracker/index" data-has-hydrated="false">
+<head>
+<meta charset="UTF-8">
+<meta name="generator" content="Docusaurus v3.6.1">
+<title data-rh="true">Tracker | Docs</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="http://localhost:3001/docs/img/docusaurus-social-card.jpg"><meta data-rh="true" name="twitter:image" content="http://localhost:3001/docs/img/docusaurus-social-card.jpg"><meta data-rh="true" property="og:url" content="http://localhost:3001/docs/api-reference/apps/tracker/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-api-reference-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-api-reference-current"><meta data-rh="true" property="og:title" content="Tracker | Docs"><meta data-rh="true" name="description" content="This page combines the API reference for:"><meta data-rh="true" property="og:description" content="This page combines the API reference for:"><link data-rh="true" rel="canonical" href="http://localhost:3001/docs/api-reference/apps/tracker/"><link data-rh="true" rel="alternate" href="http://localhost:3001/docs/api-reference/apps/tracker/" hreflang="en"><link data-rh="true" rel="alternate" href="http://localhost:3001/docs/api-reference/apps/tracker/" hreflang="x-default"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&display=swap"><link rel="stylesheet" href="/docs/assets/css/styles.069bcb1f.css">
+<script src="/docs/assets/js/runtime~main.55aae327.js" defer="defer"></script>
+<script src="/docs/assets/js/main.83aa13e5.js" defer="defer"></script>
+</head>
+<body class="navigation-with-keyboard">
+<script>!function(){function t(t){document.documentElement.setAttribute("data-theme",t)}var e=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme")}catch(t){}}();t(null!==e?e:"light")}(),function(){try{const n=new URLSearchParams(window.location.search).entries();for(var[t,e]of n)if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id="__docusaurus"><div role="region" aria-label="Skip to main content"><a class="skipToContent_fXgn" href="#__docusaurus_skipToContent_fallback">Skip to main content</a></div><nav aria-label="Main" class="navbar navbar--fixed-top navbarHideable_m1mJ"><div class="navbar__inner"><div class="navbar__items"><button aria-label="Toggle navigation bar" aria-expanded="false" class="navbar__toggle clean-btn" type="button"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M4 7h22M4 15h22M4 23h22"></path></svg></button><a class="navbar__brand" target="_self" href="/docs/"><div class="navbar__logo"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiPjwvc3ZnPg==" alt="Application Module Library Logo" class="themedComponent_mlkZ themedComponent--light_NVdE"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiPjwvc3ZnPg==" alt="Application Module Library Logo" class="themedComponent_mlkZ themedComponent--dark_xIcU"></div><b class="navbar__title text--truncate">Application Module Library</b></a></div><div class="navbar__items navbar__items--right"><a aria-current="page" class="navbar__item navbar__link navbar-item-docs navbar__link--active" href="/docs/">Docs</a><a aria-current="page" class="navbar__item navbar__link navbar-item-api-reference navbar__link--active" href="/docs/api-reference">API Reference</a><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type="button" disabled="" title="Switch between dark and light mode (currently light mode)" aria-label="Switch between dark and light mode (currently light mode)" aria-live="polite" aria-pressed="false"><svg viewBox="0 0 24 24" width="24" height="24" class="lightToggleIcon_pyhR"><path fill="currentColor" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" class="darkToggleIcon_wfgR"><path fill="currentColor" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"></path></svg></button></div><div class="navbarSearchContainer_Bca1"></div></div></div><div role="presentation" class="navbar-sidebar__backdrop"></div></nav><div id="__docusaurus_skipToContent_fallback" class="main-wrapper mainWrapper_z2l0"><div class="docsWrapper_hBAB"><button aria-label="Scroll back to top" class="clean-btn theme-back-to-top-button backToTopButton_sjWU" type="button"></button><div class="docRoot_UBD9"><aside class="theme-doc-sidebar-container docSidebarContainer_YfHR"><div class="sidebarViewport_aRkj"><div class="sidebar_njMd sidebarWithHideableNavbar_wUlq"><a tabindex="-1" class="sidebarLogo_isFc" target="_self" href="/docs/"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiPjwvc3ZnPg==" alt="Application Module Library Logo" class="themedComponent_mlkZ themedComponent--light_NVdE"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiPjwvc3ZnPg==" alt="Application Module Library Logo" class="themedComponent_mlkZ themedComponent--dark_xIcU"><b>Application Module Library</b></a><nav aria-label="Docs sidebar" class="menu thin-scrollbar menu_SIkG"><ul class="theme-doc-sidebar-menu menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/docs/api-reference/">Modlib</a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="menu__link menu__link--sublist menu__link--active" href="/docs/api-reference/category/apps">Apps</a><button aria-label="Collapse sidebar category &#x27;Apps&#x27;" aria-expanded="true" type="button" class="clean-btn menu__caret"></button></div><ul style="display:block;overflow:visible;height:auto" class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/apps/annotate">Annotate</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/apps/area">Area</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/apps/heatmap">Heatmap</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/apps/matcher">Matcher</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/apps/object_counter">Object Counter</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link menu__link--active" aria-current="page" tabindex="0" href="/docs/api-reference/apps/tracker/">Tracker</a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="menu__link menu__link--sublist" href="/docs/api-reference/category/devices">Devices</a><button aria-label="Collapse sidebar category &#x27;Devices&#x27;" aria-expanded="true" type="button" class="clean-btn menu__caret"></button></div><ul style="display:block;overflow:visible;height:auto" class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/devices/ai_camera/">Ai Camera</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/devices/device">Device</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/devices/frame">Frame</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/devices/interpreters/">Interpreters</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/devices/sources">Sources</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/devices/utils/">Utils</a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="menu__link menu__link--sublist" href="/docs/api-reference/category/models">Models</a><button aria-label="Collapse sidebar category &#x27;Models&#x27;" aria-expanded="true" type="button" class="clean-btn menu__caret"></button></div><ul style="display:block;overflow:visible;height:auto" class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/models/model">Model</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/models/post_processors/">Post Processors</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/models/results">Results</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/models/zoo/">Zoo</a></li></ul></li></ul></nav></div></div></aside><main class="docMainContainer_TBSr"><div class="container padding-top--md padding-bottom--lg"><div class="row"><div class="col docItemCol_VOVn"><div class="docItemContainer_Djhp"><article><nav class="theme-doc-breadcrumbs breadcrumbsContainer_Z_bl" aria-label="Breadcrumbs"><ul class="breadcrumbs" itemscope="" itemtype="https://schema.org/BreadcrumbList"><li class="breadcrumbs__item"><a aria-label="Home page" class="breadcrumbs__link" href="/docs/"><svg viewBox="0 0 24 24" class="breadcrumbHomeIcon_YNFT"><path d="M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3c.55 0 1-.45 1-1z" fill="currentColor"></path></svg></a></li><li itemscope="" itemprop="itemListElement" itemtype="https://schema.org/ListItem" class="breadcrumbs__item"><a class="breadcrumbs__link" itemprop="item" href="/docs/api-reference/category/apps"><span itemprop="name">Apps</span></a><meta itemprop="position" content="1"></li><li itemscope="" itemprop="itemListElement" itemtype="https://schema.org/ListItem" class="breadcrumbs__item breadcrumbs__item--active"><span class="breadcrumbs__link" itemprop="name">Tracker</span><meta itemprop="position" content="2"></li></ul></nav><div class="tocCollapsible_ETCw theme-doc-toc-mobile tocMobile_ITEo"><button type="button" class="clean-btn tocCollapsibleButton_TO0P">On this page</button></div><div class="theme-doc-markdown markdown"><header><h1>Tracker</h1></header><p>This page combines the API reference for:</p>
+<ul>
+<li>modlib.apps.tracker.basetrack</li>
+<li>modlib.apps.tracker.byte_tracker</li>
+<li>modlib.apps.tracker.kalman_filter</li>
+<li>modlib.apps.tracker.matching</li>
+</ul>
+<div class="module-separator" data-content="Class"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="trackstate">TrackState<a href="#trackstate" class="hash-link" aria-label="Direct link to TrackState" title="Direct link to TrackState">​</a></h2>
+<div class="signature"><b>TrackState(</b><b>)</b></div>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="attributes">Attributes<a href="#attributes" class="hash-link" aria-label="Direct link to Attributes" title="Direct link to Attributes">​</a></h3>
+<ul>
+<li>
+<p><span class="signature-title">New</span>    </p>
+</li>
+<li>
+<p><span class="signature-title">Tracked</span>    </p>
+</li>
+<li>
+<p><span class="signature-title">Lost</span>    </p>
+</li>
+<li>
+<p><span class="signature-title">Removed</span>    </p>
+</li>
+</ul>
+<div class="module-separator" data-content="Class"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="basetrack">BaseTrack<a href="#basetrack" class="hash-link" aria-label="Direct link to BaseTrack" title="Direct link to BaseTrack">​</a></h2>
+<div class="signature"><b>BaseTrack(</b><b>)</b></div>
+<p><strong>Descendants</strong></p>
+<ul>
+<li><a href="/docs/api-reference/apps/tracker#strack">STrack</a></li>
+</ul>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="attributes-1">Attributes<a href="#attributes-1" class="hash-link" aria-label="Direct link to Attributes" title="Direct link to Attributes">​</a></h3>
+<ul>
+<li>
+<p><span class="signature-title">track_id</span>    </p>
+</li>
+<li>
+<p><span class="signature-title">is_activated</span>    </p>
+</li>
+<li>
+<p><span class="signature-title">state</span>    </p>
+</li>
+<li>
+<p><span class="signature-title">history</span>    </p>
+</li>
+<li>
+<p><span class="signature-title">features</span>    </p>
+</li>
+<li>
+<p><span class="signature-title">curr_feature</span>    </p>
+</li>
+<li>
+<p><span class="signature-title">score</span>    </p>
+</li>
+<li>
+<p><span class="signature-title">start_frame</span>    </p>
+</li>
+<li>
+<p><span class="signature-title">frame_id</span>    </p>
+</li>
+<li>
+<p><span class="signature-title">time_since_update</span>    </p>
+</li>
+<li>
+<p><span class="signature-title">location</span>    </p>
+</li>
+</ul>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="properties">Properties<a href="#properties" class="hash-link" aria-label="Direct link to Properties" title="Direct link to Properties">​</a></h3>
+<ul>
+<li><span class="signature-title">end_frame</span>    </li>
+</ul>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="methods">Methods<a href="#methods" class="hash-link" aria-label="Direct link to Methods" title="Direct link to Methods">​</a></h3>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="activate"><span class="signature-title">activate</span><a href="#activate" class="hash-link" aria-label="Direct link to activate" title="Direct link to activate">​</a></h4>
+<div class="signature"><b>activate(</b>self, *args<b>)</b></div>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="predict"><span class="signature-title">predict</span><a href="#predict" class="hash-link" aria-label="Direct link to predict" title="Direct link to predict">​</a></h4>
+<div class="signature"><b>predict(</b>self<b>)</b></div>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="update"><span class="signature-title">update</span><a href="#update" class="hash-link" aria-label="Direct link to update" title="Direct link to update">​</a></h4>
+<div class="signature"><b>update(</b>self, *args, **kwargs<b>)</b></div>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="mark_lost"><span class="signature-title">mark_lost</span><a href="#mark_lost" class="hash-link" aria-label="Direct link to mark_lost" title="Direct link to mark_lost">​</a></h4>
+<div class="signature"><b>mark_lost(</b>self<b>)</b></div>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="mark_removed"><span class="signature-title">mark_removed</span><a href="#mark_removed" class="hash-link" aria-label="Direct link to mark_removed" title="Direct link to mark_removed">​</a></h4>
+<div class="signature"><b>mark_removed(</b>self<b>)</b></div>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="next_id"><span class="signature-title">next_id</span><a href="#next_id" class="hash-link" aria-label="Direct link to next_id" title="Direct link to next_id">​</a></h4>
+<div class="decorator">@staticmethod</div>
+<div class="signature"><b>next_id(</b><b>)</b></div>
+<div class="module-separator" data-content="Function"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="to_tracker"><span class="signature-title">to_tracker</span><a href="#to_tracker" class="hash-link" aria-label="Direct link to to_tracker" title="Direct link to to_tracker">​</a></h2>
+<div class="signature"><b>to_tracker(</b>detections: <a href="/docs/api-reference/models/results#detections">Detections</a>, frame_height: int, frame_width: int<b>)</b> ‑&gt; <a href="/docs/api-reference/apps/tracker#totrack">ToTrack</a></div>
+<p>Converts the detection object to a tracker object.</p>
+<p><strong>Args:</strong></p>
+<ul>
+<li><strong>detections</strong> (<a href="/docs/api-reference/models/results#detections">Detections</a>): The detection object to convert.</li>
+<li><strong>frame_height</strong> (int): The height of the frame.</li>
+<li><strong>frame_width</strong> (int): The width of the frame.</li>
+</ul>
+<p><strong>Returns:</strong> (<a href="/docs/api-reference/apps/tracker#totrack">ToTrack</a>)<br>
+<!-- -->The converted tracker object.</p>
+<div class="module-separator" data-content="Function"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="joint_stracks"><span class="signature-title">joint_stracks</span><a href="#joint_stracks" class="hash-link" aria-label="Direct link to joint_stracks" title="Direct link to joint_stracks">​</a></h2>
+<div class="signature"><b>joint_stracks(</b>tlista, tlistb<b>)</b></div>
+<div class="module-separator" data-content="Function"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="sub_stracks"><span class="signature-title">sub_stracks</span><a href="#sub_stracks" class="hash-link" aria-label="Direct link to sub_stracks" title="Direct link to sub_stracks">​</a></h2>
+<div class="signature"><b>sub_stracks(</b>tlista, tlistb<b>)</b></div>
+<div class="module-separator" data-content="Function"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="remove_duplicate_stracks"><span class="signature-title">remove_duplicate_stracks</span><a href="#remove_duplicate_stracks" class="hash-link" aria-label="Direct link to remove_duplicate_stracks" title="Direct link to remove_duplicate_stracks">​</a></h2>
+<div class="signature"><b>remove_duplicate_stracks(</b>stracksa, stracksb<b>)</b></div>
+<div class="module-separator" data-content="Function"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="tracks2boxes"><span class="signature-title">tracks2boxes</span><a href="#tracks2boxes" class="hash-link" aria-label="Direct link to tracks2boxes" title="Direct link to tracks2boxes">​</a></h2>
+<div class="signature"><b>tracks2boxes(</b>tracks: List[<a href="/docs/api-reference/apps/tracker#strack">STrack</a>]<b>)</b> ‑&gt; numpy.ndarray</div>
+<div class="module-separator" data-content="Function"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="match_detections_with_tracks"><span class="signature-title">match_detections_with_tracks</span><a href="#match_detections_with_tracks" class="hash-link" aria-label="Direct link to match_detections_with_tracks" title="Direct link to match_detections_with_tracks">​</a></h2>
+<div class="signature"><b>match_detections_with_tracks(</b>detections: <a href="/docs/api-reference/models/results#detections">Detections</a>, tracks: List[<a href="/docs/api-reference/apps/tracker#strack">STrack</a>]<b>)</b> ‑&gt; numpy.ndarray</div>
+<div class="module-separator" data-content="Class"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="strack">STrack<a href="#strack" class="hash-link" aria-label="Direct link to STrack" title="Direct link to STrack">​</a></h2>
+<div class="signature"><b>STrack(</b>tlwh, score<b>)</b></div>
+<p><strong>Inherites</strong></p>
+<ul>
+<li><a href="/docs/api-reference/apps/tracker#basetrack">BaseTrack</a></li>
+</ul>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="attributes-2">Attributes<a href="#attributes-2" class="hash-link" aria-label="Direct link to Attributes" title="Direct link to Attributes">​</a></h3>
+<ul>
+<li><span class="signature-title">shared_kalman</span>    </li>
+</ul>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="properties-1">Properties<a href="#properties-1" class="hash-link" aria-label="Direct link to Properties" title="Direct link to Properties">​</a></h3>
+<ul>
+<li>
+<p><span class="signature-title">tlwh</span>    Get current position in bounding box format <code>(top left x, top left y, width, height)</code>.</p>
+</li>
+<li>
+<p><span class="signature-title">tlbr</span>    Convert bounding box to format <code>(min x, min y, max x, max y)</code>, i.e.,
+<code>(top left, bottom right)</code>.</p>
+</li>
+</ul>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="methods-1">Methods<a href="#methods-1" class="hash-link" aria-label="Direct link to Methods" title="Direct link to Methods">​</a></h3>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="__init__"><span class="signature-title">__init__</span><a href="#__init__" class="hash-link" aria-label="Direct link to __init__" title="Direct link to __init__">​</a></h4>
+<div class="signature"><b>__init__(</b>self, tlwh, score<b>)</b></div>
+<p>Initialize self.  See help(type(self)) for accurate signature.</p>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="predict-1"><span class="signature-title">predict</span><a href="#predict-1" class="hash-link" aria-label="Direct link to predict-1" title="Direct link to predict-1">​</a></h4>
+<div class="signature"><b>predict(</b>self<b>)</b></div>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="activate-1"><span class="signature-title">activate</span><a href="#activate-1" class="hash-link" aria-label="Direct link to activate-1" title="Direct link to activate-1">​</a></h4>
+<div class="signature"><b>activate(</b>self, kalman_filter, frame_id<b>)</b></div>
+<p>Start a new tracklet</p>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="re_activate"><span class="signature-title">re_activate</span><a href="#re_activate" class="hash-link" aria-label="Direct link to re_activate" title="Direct link to re_activate">​</a></h4>
+<div class="signature"><b>re_activate(</b>self, new_track, frame_id, new_id=False<b>)</b></div>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="update-1"><span class="signature-title">update</span><a href="#update-1" class="hash-link" aria-label="Direct link to update-1" title="Direct link to update-1">​</a></h4>
+<div class="signature"><b>update(</b>self, new_track: <a href="/docs/api-reference/apps/tracker#strack">STrack</a>, frame_id: int<b>)</b></div>
+<p>Update a matched track.</p>
+<p><strong>Args:</strong></p>
+<ul>
+<li><strong>new_track</strong> (<a href="/docs/api-reference/apps/tracker#strack">STrack</a>): A tracked object to update its current data</li>
+<li><strong>frame_id</strong> (int): Id of frame it was detected in</li>
+</ul>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="to_xyah"><span class="signature-title">to_xyah</span><a href="#to_xyah" class="hash-link" aria-label="Direct link to to_xyah" title="Direct link to to_xyah">​</a></h4>
+<div class="signature"><b>to_xyah(</b>self<b>)</b></div>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="__repr__"><span class="signature-title">__repr__</span><a href="#__repr__" class="hash-link" aria-label="Direct link to __repr__" title="Direct link to __repr__">​</a></h4>
+<div class="signature"><b>__repr__(</b>self<b>)</b></div>
+<p>Return repr(self).</p>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="multi_predict"><span class="signature-title">multi_predict</span><a href="#multi_predict" class="hash-link" aria-label="Direct link to multi_predict" title="Direct link to multi_predict">​</a></h4>
+<div class="decorator">@staticmethod</div>
+<div class="signature"><b>multi_predict(</b>stracks<b>)</b></div>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="tlwh_to_xyah"><span class="signature-title">tlwh_to_xyah</span><a href="#tlwh_to_xyah" class="hash-link" aria-label="Direct link to tlwh_to_xyah" title="Direct link to tlwh_to_xyah">​</a></h4>
+<div class="decorator">@staticmethod</div>
+<div class="signature"><b>tlwh_to_xyah(</b>tlwh<b>)</b></div>
+<p>Convert bounding box to format <code>(center x, center y, aspect ratio,           height)</code>, where the aspect ratio is <code>width / height</code>.</p>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="tlbr_to_tlwh"><span class="signature-title">tlbr_to_tlwh</span><a href="#tlbr_to_tlwh" class="hash-link" aria-label="Direct link to tlbr_to_tlwh" title="Direct link to tlbr_to_tlwh">​</a></h4>
+<div class="decorator">@staticmethod</div>
+<div class="signature"><b>tlbr_to_tlwh(</b>tlbr<b>)</b></div>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="tlwh_to_tlbr"><span class="signature-title">tlwh_to_tlbr</span><a href="#tlwh_to_tlbr" class="hash-link" aria-label="Direct link to tlwh_to_tlbr" title="Direct link to tlwh_to_tlbr">​</a></h4>
+<div class="decorator">@staticmethod</div>
+<div class="signature"><b>tlwh_to_tlbr(</b>tlwh<b>)</b></div>
+<div class="module-separator" data-content="Class"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="totrack">ToTrack<a href="#totrack" class="hash-link" aria-label="Direct link to ToTrack" title="Direct link to ToTrack">​</a></h2>
+<div class="signature"><b>ToTrack(</b><b>)</b></div>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="attributes-3">Attributes<a href="#attributes-3" class="hash-link" aria-label="Direct link to Attributes" title="Direct link to Attributes">​</a></h3>
+<ul>
+<li>
+<p><span class="signature-title">output_results: numpy.ndarray</span>    </p>
+</li>
+<li>
+<p><span class="signature-title">img_info: Tuple[int, int]</span>    </p>
+</li>
+<li>
+<p><span class="signature-title">img_size: Tuple[int, int]</span>    </p>
+</li>
+</ul>
+<div class="module-separator" data-content="Class"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="bytetracker">BYTETracker<a href="#bytetracker" class="hash-link" aria-label="Direct link to BYTETracker" title="Direct link to BYTETracker">​</a></h2>
+<p></p><div class="signature"><b>BYTETracker(</b>args: object, frame_rate: int = 30<b>)</b></div>
+Provides tracking ids to detections by looking at the movement of bboxes over time<p></p>
+<p>Example:</p>
+<div class="codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_biex"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#393A34"><span class="token plain">from modlib.apps import BYTETracker</span><br></span><span class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></span><span class="token-line" style="color:#393A34"><span class="token plain">class BYTETrackerArgs:</span><br></span><span class="token-line" style="color:#393A34"><span class="token plain">    track_thresh: float = 0.25</span><br></span><span class="token-line" style="color:#393A34"><span class="token plain">    track_buffer: int = 30</span><br></span><span class="token-line" style="color:#393A34"><span class="token plain">    match_thresh: float = 0.8</span><br></span><span class="token-line" style="color:#393A34"><span class="token plain">    aspect_ratio_thresh: float = 3.0</span><br></span><span class="token-line" style="color:#393A34"><span class="token plain">    min_box_area: float = 1.0</span><br></span><span class="token-line" style="color:#393A34"><span class="token plain">    mot20: bool = False</span><br></span><span class="token-line" style="color:#393A34"><span class="token plain" style="display:inline-block"></span><br></span><span class="token-line" style="color:#393A34"><span class="token plain">tracker = BYTETracker(BYTETrackerArgs())</span><br></span><span class="token-line" style="color:#393A34"><span class="token plain">...</span><br></span><span class="token-line" style="color:#393A34"><span class="token plain">detections = tracker.update(frame, detections)</span><br></span></code></pre><div class="buttonGroup__atx"><button type="button" aria-label="Copy code to clipboard" title="Copy" class="clean-btn"><span class="copyButtonIcons_eSgA" aria-hidden="true"><svg viewBox="0 0 24 24" class="copyButtonIcon_y97N"><path fill="currentColor" d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg><svg viewBox="0 0 24 24" class="copyButtonSuccessIcon_LjdS"><path fill="currentColor" d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"></path></svg></span></button></div></div></div>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="methods-2">Methods<a href="#methods-2" class="hash-link" aria-label="Direct link to Methods" title="Direct link to Methods">​</a></h3>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="__init__-1"><span class="signature-title">__init__</span><a href="#__init__-1" class="hash-link" aria-label="Direct link to __init__-1" title="Direct link to __init__-1">​</a></h4>
+<div class="signature"><b>__init__(</b>self, args: object, frame_rate: int = 30<b>)</b></div>
+<p>Initialise the tracker providing the BYTETrackerArgs.</p>
+<p><strong>Args:</strong></p>
+<ul>
+<li><strong>args</strong> (object): Arguments for the BYTETracker</li>
+<li><strong>frame_rate</strong> (int = 30): Exected frame rate of the camera feed.</li>
+</ul>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="update-2"><span class="signature-title">update</span><a href="#update-2" class="hash-link" aria-label="Direct link to update-2" title="Direct link to update-2">​</a></h4>
+<div class="signature"><b>update(</b>self, frame: <a href="/docs/api-reference/devices/frame#frame">Frame</a>, detections: <a href="/docs/api-reference/models/results#detections">Detections</a><b>)</b> ‑&gt; <a href="/docs/api-reference/models/results#detections">Detections</a></div>
+<p>BYTETracker update functionality reponsible for tracking of objects across frames.<br>
+<!-- -->It updates the given detection with a unique tracker ID.</p>
+<p><strong>Args:</strong></p>
+<ul>
+<li><strong>frame</strong> (<a href="/docs/api-reference/devices/frame#frame">Frame</a>): The frame corresponding to the given detections.</li>
+<li><strong>detections</strong> (<a href="/docs/api-reference/models/results#detections">Detections</a>): The detections for which to add the <code>tracker_id</code>&#x27;s.</li>
+</ul>
+<p><strong>Returns:</strong> (<a href="/docs/api-reference/models/results#detections">Detections</a>)<br>
+<!-- -->The updated detections including tracklets.</p>
+<div class="module-separator" data-content="Class"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="kalmanfilter">KalmanFilter<a href="#kalmanfilter" class="hash-link" aria-label="Direct link to KalmanFilter" title="Direct link to KalmanFilter">​</a></h2>
+<p></p><div class="signature"><b>KalmanFilter(</b><b>)</b></div>
+A simple Kalman filter for tracking bounding boxes in image space.<p></p>
+<p>The 8-dimensional state space</p>
+<p>x, y, a, h, vx, vy, va, vh</p>
+<p>contains the bounding box center position (x, y), aspect ratio a, height h,
+and their respective velocities.</p>
+<p>Object motion follows a constant velocity model. The bounding box location
+(x, y, a, h) is taken as direct observation of the state space (linear
+observation model).</p>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="methods-3">Methods<a href="#methods-3" class="hash-link" aria-label="Direct link to Methods" title="Direct link to Methods">​</a></h3>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="__init__-2"><span class="signature-title">__init__</span><a href="#__init__-2" class="hash-link" aria-label="Direct link to __init__-2" title="Direct link to __init__-2">​</a></h4>
+<div class="signature"><b>__init__(</b>self<b>)</b></div>
+<p>Initialize self.  See help(type(self)) for accurate signature.</p>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="initiate"><span class="signature-title">initiate</span><a href="#initiate" class="hash-link" aria-label="Direct link to initiate" title="Direct link to initiate">​</a></h4>
+<div class="signature"><b>initiate(</b>self, measurement: numpy.ndarray<b>)</b> ‑&gt; Tuple[numpy.ndarray, numpy.ndarray]</div>
+<p>Create track from unassociated measurement.</p>
+<p><strong>Args:</strong></p>
+<ul>
+<li><strong>measurement</strong> (numpy.ndarray): Bounding box coordinates (x, y, a, h) with center position (x, y), aspect ratio a, and height h.</li>
+</ul>
+<p><strong>Returns:</strong> (Tuple[numpy.ndarray, numpy.ndarray])<br>
+<!-- -->The mean vector (8 dimensional) and covariance matrix (8x8 dimensional)<br>
+<!-- -->of the new track. Unobserved velocities are initialized to 0 mean.</p>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="predict-2"><span class="signature-title">predict</span><a href="#predict-2" class="hash-link" aria-label="Direct link to predict-2" title="Direct link to predict-2">​</a></h4>
+<div class="signature"><b>predict(</b>self, mean: numpy.ndarray, covariance: numpy.ndarray<b>)</b> ‑&gt; Tuple[numpy.ndarray, numpy.ndarray]</div>
+<p>Run Kalman filter prediction step.</p>
+<p><strong>Args:</strong></p>
+<ul>
+<li><strong>mean</strong> (numpy.ndarray): The 8 dimensional mean vector of the object state at the previous time step.</li>
+<li><strong>covariance</strong> (numpy.ndarray): The 8x8 dimensional covariance matrix of the object state at the previous time step.</li>
+</ul>
+<p><strong>Returns:</strong> (Tuple[numpy.ndarray, numpy.ndarray])<br>
+<!-- -->The mean vector and covariance matrix of the predicted<br>
+<!-- -->state. Unobserved velocities are initialized to 0 mean.</p>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="project"><span class="signature-title">project</span><a href="#project" class="hash-link" aria-label="Direct link to project" title="Direct link to project">​</a></h4>
+<div class="signature"><b>project(</b>self, mean: numpy.ndarray, covariance: numpy.ndarray<b>)</b> ‑&gt; Tuple[numpy.ndarray, numpy.ndarray]</div>
+<p>Project state distribution to measurement space.</p>
+<p><strong>Args:</strong></p>
+<ul>
+<li><strong>mean</strong> (numpy.ndarray): The state&#x27;s mean vector (8 dimensional array).</li>
+<li><strong>covariance</strong> (numpy.ndarray): The state&#x27;s covariance matrix (8x8 dimensional).</li>
+</ul>
+<p><strong>Returns:</strong> (Tuple[numpy.ndarray, numpy.ndarray])<br>
+<!-- -->The projected mean and covariance matrix of the given state estimate.</p>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="multi_predict-1"><span class="signature-title">multi_predict</span><a href="#multi_predict-1" class="hash-link" aria-label="Direct link to multi_predict-1" title="Direct link to multi_predict-1">​</a></h4>
+<div class="signature"><b>multi_predict(</b>self, mean: numpy.ndarray, covariance: numpy.ndarray<b>)</b> ‑&gt; Tuple[numpy.ndarray, numpy.ndarray]</div>
+<p>Run Kalman filter prediction step (Vectorized version).</p>
+<p><strong>Args:</strong></p>
+<ul>
+<li><strong>mean</strong> (numpy.ndarray): The Nx8 dimensional mean matrix of the object states at the previous time step.</li>
+<li><strong>covariance</strong> (numpy.ndarray): The Nx8x8 dimensional covariance matrics of the object states at the previous time step.</li>
+</ul>
+<p><strong>Returns:</strong> (Tuple[numpy.ndarray, numpy.ndarray])<br>
+<!-- -->The mean vector and covariance matrix of the predicted state.<br>
+<!-- -->Unobserved velocities are initialized to 0 mean.</p>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="update-3"><span class="signature-title">update</span><a href="#update-3" class="hash-link" aria-label="Direct link to update-3" title="Direct link to update-3">​</a></h4>
+<div class="signature"><b>update(</b>self, mean: numpy.ndarray, covariance: numpy.ndarray, measurement: numpy.ndarray<b>)</b> ‑&gt; Tuple[numpy.ndarray, numpy.ndarray]</div>
+<p>Run Kalman filter correction step.</p>
+<p><strong>Args:</strong></p>
+<ul>
+<li><strong>mean</strong> (numpy.ndarray): The predicted state&#x27;s mean vector (8 dimensional).</li>
+<li><strong>covariance</strong> (numpy.ndarray): The state&#x27;s covariance matrix (8x8 dimensional).</li>
+<li><strong>measurement</strong> (numpy.ndarray): The 4 dimensional measurement vector (x, y, a, h), where (x, y)
+is the center position, a the aspect ratio, and h the height of the bounding box.</li>
+</ul>
+<p><strong>Returns:</strong> (Tuple[numpy.ndarray, numpy.ndarray])<br>
+<!-- -->The measurement-corrected state distribution.</p>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="gating_distance"><span class="signature-title">gating_distance</span><a href="#gating_distance" class="hash-link" aria-label="Direct link to gating_distance" title="Direct link to gating_distance">​</a></h4>
+<div class="signature"><b>gating_distance(</b>self, mean: numpy.ndarray, covariance: numpy.ndarray, measurements: numpy.ndarray, only_position: Optional[bool] = False, metric: str = &#x27;maha&#x27;<b>)</b> ‑&gt; numpy.ndarray</div>
+<p>Compute gating distance between state distribution and measurements.<br>
+<!-- -->A suitable distance threshold can be obtained from <code>chi2inv95</code>. If<br>
+<code>only_position</code> is False, the chi-square distribution has 4 degrees of<br>
+<!-- -->freedom, otherwise 2.</p>
+<p><strong>Args:</strong></p>
+<ul>
+<li><strong>mean</strong> (numpy.ndarray): Mean vector over the state distribution (8 dimensional).</li>
+<li><strong>covariance</strong> (numpy.ndarray): Covariance of the state distribution (8x8 dimensional).</li>
+<li><strong>measurements</strong> (numpy.ndarray): An Nx4 dimensional matrix of N measurements, each in
+format (x, y, a, h) where (x, y) is the bounding box center<br>
+<!-- -->position, a the aspect ratio, and h the height.</li>
+<li><strong>only_position</strong> (Optional[bool] = False): If True, distance computation is done with respect to the bounding box center position only.</li>
+<li><strong>metric</strong> (str = &#x27;maha&#x27;): Distance metric to be used, should be one of [&#x27;gaussian&#x27;, &#x27;maha&#x27;]. Defaults to <code>maha</code>.</li>
+</ul>
+<p><strong>Returns:</strong> (numpy.ndarray)<br>
+<!-- -->An array of length N, where the i-th element contains the squared Mahalanobis distance<br>
+<!-- -->between (mean, covariance) and <code>measurements[i]</code>.</p>
+<div class="module-separator" data-content="Function"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="bbox_overlaps"><span class="signature-title">bbox_overlaps</span><a href="#bbox_overlaps" class="hash-link" aria-label="Direct link to bbox_overlaps" title="Direct link to bbox_overlaps">​</a></h2>
+<div class="signature"><b>bbox_overlaps(</b>atlbrs: numpy.ndarray, btlbrs: numpy.ndarray<b>)</b> ‑&gt; numpy.ndarray</div>
+<p>Compute the Intersection over Union (IoU) between two sets of bounding boxes.</p>
+<p><strong>Args:</strong></p>
+<ul>
+<li><strong>atlbrs</strong> (numpy.ndarray): An array of shape (M, 4) representing the first set of bounding boxes.</li>
+<li><strong>btlbrs</strong> (numpy.ndarray): An array of shape (N, 4) representing the second set of bounding boxes.</li>
+</ul>
+<p><strong>Returns:</strong> (numpy.ndarray)<br>
+<!-- -->The <code>ious</code>, a matrix of shape (M, N) where element (i, j) is the IoU between the ith bounding box in atlbrs<br>
+<!-- -->and the jth bounding box in btlbrs.</p>
+<div class="module-separator" data-content="Function"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="linear_assignment"><span class="signature-title">linear_assignment</span><a href="#linear_assignment" class="hash-link" aria-label="Direct link to linear_assignment" title="Direct link to linear_assignment">​</a></h2>
+<div class="signature"><b>linear_assignment(</b>cost_matrix, thresh<b>)</b></div>
+<div class="module-separator" data-content="Function"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="ious"><span class="signature-title">ious</span><a href="#ious" class="hash-link" aria-label="Direct link to ious" title="Direct link to ious">​</a></h2>
+<div class="signature"><b>ious(</b>atlbrs: numpy.ndarray, btlbrs: numpy.ndarray<b>)</b> ‑&gt; numpy.ndarray</div>
+<p>Compute cost based on IoU</p>
+<p><strong>Args:</strong><br>
+<!-- -->atlbrs (List[STrack.tlbr] | np.ndarray): atlbrs<br>
+<!-- -->btlbrs (List[STrack.tlbr] | np.ndarray): btlbrs</p>
+<p><strong>Returns:</strong> (numpy.ndarray)<br>
+<!-- -->ious</p>
+<div class="module-separator" data-content="Function"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="iou_distance"><span class="signature-title">iou_distance</span><a href="#iou_distance" class="hash-link" aria-label="Direct link to iou_distance" title="Direct link to iou_distance">​</a></h2>
+<div class="signature"><b>iou_distance(</b>atracks, btracks<b>)</b> ‑&gt; numpy.ndarray</div>
+<p>Compute cost based on IoU</p>
+<p><strong>Args:</strong><br>
+<!-- -->atracks (List[STrack]): atracks<br>
+<!-- -->btracks (List[STrack]): atracks</p>
+<p><strong>Returns:</strong> (numpy.ndarray)<br>
+<!-- -->The cost_matrix</p>
+<div class="module-separator" data-content="Function"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="fuse_score"><span class="signature-title">fuse_score</span><a href="#fuse_score" class="hash-link" aria-label="Direct link to fuse_score" title="Direct link to fuse_score">​</a></h2>
+<div class="signature"><b>fuse_score(</b>cost_matrix, detections<b>)</b></div></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col"></div><div class="col lastUpdated_JAkA"><span class="theme-last-updated">Last updated<!-- --> on <b><time datetime="2024-11-19T14:53:32.000Z" itemprop="dateModified">Nov 19, 2024</time></b></span></div></div></footer></article><nav class="pagination-nav docusaurus-mt-lg" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/api-reference/apps/object_counter"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Object Counter</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/api-reference/category/devices"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Devices</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#trackstate" class="table-of-contents__link toc-highlight">TrackState</a><ul><li><a href="#attributes" class="table-of-contents__link toc-highlight">Attributes</a></li></ul></li><li><a href="#basetrack" class="table-of-contents__link toc-highlight">BaseTrack</a><ul><li><a href="#attributes-1" class="table-of-contents__link toc-highlight">Attributes</a></li><li><a href="#properties" class="table-of-contents__link toc-highlight">Properties</a></li><li><a href="#methods" class="table-of-contents__link toc-highlight">Methods</a><ul><li><a href="#activate" class="table-of-contents__link toc-highlight"><span class="signature-title">activate</span></a></li><li><a href="#predict" class="table-of-contents__link toc-highlight"><span class="signature-title">predict</span></a></li><li><a href="#update" class="table-of-contents__link toc-highlight"><span class="signature-title">update</span></a></li><li><a href="#mark_lost" class="table-of-contents__link toc-highlight"><span class="signature-title">mark_lost</span></a></li><li><a href="#mark_removed" class="table-of-contents__link toc-highlight"><span class="signature-title">mark_removed</span></a></li><li><a href="#next_id" class="table-of-contents__link toc-highlight"><span class="signature-title">next_id</span></a></li></ul></li></ul></li><li><a href="#to_tracker" class="table-of-contents__link toc-highlight"><span class="signature-title">to_tracker</span></a></li><li><a href="#joint_stracks" class="table-of-contents__link toc-highlight"><span class="signature-title">joint_stracks</span></a></li><li><a href="#sub_stracks" class="table-of-contents__link toc-highlight"><span class="signature-title">sub_stracks</span></a></li><li><a href="#remove_duplicate_stracks" class="table-of-contents__link toc-highlight"><span class="signature-title">remove_duplicate_stracks</span></a></li><li><a href="#tracks2boxes" class="table-of-contents__link toc-highlight"><span class="signature-title">tracks2boxes</span></a></li><li><a href="#match_detections_with_tracks" class="table-of-contents__link toc-highlight"><span class="signature-title">match_detections_with_tracks</span></a></li><li><a href="#strack" class="table-of-contents__link toc-highlight">STrack</a><ul><li><a href="#attributes-2" class="table-of-contents__link toc-highlight">Attributes</a></li><li><a href="#properties-1" class="table-of-contents__link toc-highlight">Properties</a></li><li><a href="#methods-1" class="table-of-contents__link toc-highlight">Methods</a><ul><li><a href="#__init__" class="table-of-contents__link toc-highlight"><span class="signature-title">__init__</span></a></li><li><a href="#predict-1" class="table-of-contents__link toc-highlight"><span class="signature-title">predict</span></a></li><li><a href="#activate-1" class="table-of-contents__link toc-highlight"><span class="signature-title">activate</span></a></li><li><a href="#re_activate" class="table-of-contents__link toc-highlight"><span class="signature-title">re_activate</span></a></li><li><a href="#update-1" class="table-of-contents__link toc-highlight"><span class="signature-title">update</span></a></li><li><a href="#to_xyah" class="table-of-contents__link toc-highlight"><span class="signature-title">to_xyah</span></a></li><li><a href="#__repr__" class="table-of-contents__link toc-highlight"><span class="signature-title">__repr__</span></a></li><li><a href="#multi_predict" class="table-of-contents__link toc-highlight"><span class="signature-title">multi_predict</span></a></li><li><a href="#tlwh_to_xyah" class="table-of-contents__link toc-highlight"><span class="signature-title">tlwh_to_xyah</span></a></li><li><a href="#tlbr_to_tlwh" class="table-of-contents__link toc-highlight"><span class="signature-title">tlbr_to_tlwh</span></a></li><li><a href="#tlwh_to_tlbr" class="table-of-contents__link toc-highlight"><span class="signature-title">tlwh_to_tlbr</span></a></li></ul></li></ul></li><li><a href="#totrack" class="table-of-contents__link toc-highlight">ToTrack</a><ul><li><a href="#attributes-3" class="table-of-contents__link toc-highlight">Attributes</a></li></ul></li><li><a href="#bytetracker" class="table-of-contents__link toc-highlight">BYTETracker</a><ul><li><a href="#methods-2" class="table-of-contents__link toc-highlight">Methods</a><ul><li><a href="#__init__-1" class="table-of-contents__link toc-highlight"><span class="signature-title">__init__</span></a></li><li><a href="#update-2" class="table-of-contents__link toc-highlight"><span class="signature-title">update</span></a></li></ul></li></ul></li><li><a href="#kalmanfilter" class="table-of-contents__link toc-highlight">KalmanFilter</a><ul><li><a href="#methods-3" class="table-of-contents__link toc-highlight">Methods</a><ul><li><a href="#__init__-2" class="table-of-contents__link toc-highlight"><span class="signature-title">__init__</span></a></li><li><a href="#initiate" class="table-of-contents__link toc-highlight"><span class="signature-title">initiate</span></a></li><li><a href="#predict-2" class="table-of-contents__link toc-highlight"><span class="signature-title">predict</span></a></li><li><a href="#project" class="table-of-contents__link toc-highlight"><span class="signature-title">project</span></a></li><li><a href="#multi_predict-1" class="table-of-contents__link toc-highlight"><span class="signature-title">multi_predict</span></a></li><li><a href="#update-3" class="table-of-contents__link toc-highlight"><span class="signature-title">update</span></a></li><li><a href="#gating_distance" class="table-of-contents__link toc-highlight"><span class="signature-title">gating_distance</span></a></li></ul></li></ul></li><li><a href="#bbox_overlaps" class="table-of-contents__link toc-highlight"><span class="signature-title">bbox_overlaps</span></a></li><li><a href="#linear_assignment" class="table-of-contents__link toc-highlight"><span class="signature-title">linear_assignment</span></a></li><li><a href="#ious" class="table-of-contents__link toc-highlight"><span class="signature-title">ious</span></a></li><li><a href="#iou_distance" class="table-of-contents__link toc-highlight"><span class="signature-title">iou_distance</span></a></li><li><a href="#fuse_score" class="table-of-contents__link toc-highlight"><span class="signature-title">fuse_score</span></a></li></ul></div></div></div></div></main></div></div></div></div>
+</body>
+</html>

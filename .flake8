@@ -1,0 +1,4 @@
+[flake8]
+max-line-length = 121
+extend-ignore = F401, E203
+exclude = .git,__pycache__,.venv,tests,examples

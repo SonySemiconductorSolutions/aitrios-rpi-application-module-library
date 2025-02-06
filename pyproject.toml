@@ -1,0 +1,58 @@
+[tool.poetry]
+name = "modlib"
+version = "1.0.0"
+description = ""
+authors = ["Sony Semiconductor Solutions Corp"]
+readme = "README.md"
+include = ["docs", "examples"]
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.12"
+numpy = "<2.0.0"
+lapx = "^0.5.5"
+requests = "^2.32.3"
+
+[tool.poetry.group.dev.dependencies]
+flake8 = "^7.1.0"
+black = "^24.4.2"
+isort = "^5.13.2"
+
+[tool.poetry.group.test.dependencies]
+opencv-python = ">=4.5.3.56"
+pytest = "^7.4.2"
+pytest-cov = "^4.1.0"
+tensorflow = "2.14.0"
+tensorflow-io-gcs-filesystem = {version = "0.31.0", markers = "sys_platform == 'win32'"}
+tensorflow-intel = {version = "2.14.0", markers = "sys_platform == 'win32'"}
+tensorflow-cpu-aws = {version = "2.14.0", markers = "platform_machine == 'aarch64'"}
+tf-keras = "2.14.1"
+huggingface-hub = "<=0.21.4"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 120
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | tests
+)/
+'''
+
+[tool.isort]
+skip = [
+    ".git",
+    ".venv",
+    "tests"
+]
+
+[tool.pytest.ini_options]
+addopts = "--cov='modlib' --cov-report=term-missing:skip-covered -s"
+python_files = ["tests/*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "aicam: marks tests as aicam (deselect with '-m \"not aicam\"')",
+]

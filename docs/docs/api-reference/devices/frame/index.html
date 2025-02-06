@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en" dir="ltr" class="docs-wrapper plugin-docs plugin-id-api-reference docs-version-current docs-doc-page docs-doc-id-devices/frame" data-has-hydrated="false">
+<head>
+<meta charset="UTF-8">
+<meta name="generator" content="Docusaurus v3.6.1">
+<title data-rh="true">Frame | Docs</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="http://localhost:3001/docs/img/docusaurus-social-card.jpg"><meta data-rh="true" name="twitter:image" content="http://localhost:3001/docs/img/docusaurus-social-card.jpg"><meta data-rh="true" property="og:url" content="http://localhost:3001/docs/api-reference/devices/frame"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-api-reference-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-api-reference-current"><meta data-rh="true" property="og:title" content="Frame | Docs"><meta data-rh="true" name="description" content="ROI"><meta data-rh="true" property="og:description" content="ROI"><link data-rh="true" rel="canonical" href="http://localhost:3001/docs/api-reference/devices/frame"><link data-rh="true" rel="alternate" href="http://localhost:3001/docs/api-reference/devices/frame" hreflang="en"><link data-rh="true" rel="alternate" href="http://localhost:3001/docs/api-reference/devices/frame" hreflang="x-default"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&display=swap"><link rel="stylesheet" href="/docs/assets/css/styles.069bcb1f.css">
+<script src="/docs/assets/js/runtime~main.55aae327.js" defer="defer"></script>
+<script src="/docs/assets/js/main.83aa13e5.js" defer="defer"></script>
+</head>
+<body class="navigation-with-keyboard">
+<script>!function(){function t(t){document.documentElement.setAttribute("data-theme",t)}var e=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme")}catch(t){}}();t(null!==e?e:"light")}(),function(){try{const n=new URLSearchParams(window.location.search).entries();for(var[t,e]of n)if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id="__docusaurus"><div role="region" aria-label="Skip to main content"><a class="skipToContent_fXgn" href="#__docusaurus_skipToContent_fallback">Skip to main content</a></div><nav aria-label="Main" class="navbar navbar--fixed-top navbarHideable_m1mJ"><div class="navbar__inner"><div class="navbar__items"><button aria-label="Toggle navigation bar" aria-expanded="false" class="navbar__toggle clean-btn" type="button"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M4 7h22M4 15h22M4 23h22"></path></svg></button><a class="navbar__brand" target="_self" href="/docs/"><div class="navbar__logo"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiPjwvc3ZnPg==" alt="Application Module Library Logo" class="themedComponent_mlkZ themedComponent--light_NVdE"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiPjwvc3ZnPg==" alt="Application Module Library Logo" class="themedComponent_mlkZ themedComponent--dark_xIcU"></div><b class="navbar__title text--truncate">Application Module Library</b></a></div><div class="navbar__items navbar__items--right"><a aria-current="page" class="navbar__item navbar__link navbar-item-docs navbar__link--active" href="/docs/">Docs</a><a aria-current="page" class="navbar__item navbar__link navbar-item-api-reference navbar__link--active" href="/docs/api-reference">API Reference</a><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type="button" disabled="" title="Switch between dark and light mode (currently light mode)" aria-label="Switch between dark and light mode (currently light mode)" aria-live="polite" aria-pressed="false"><svg viewBox="0 0 24 24" width="24" height="24" class="lightToggleIcon_pyhR"><path fill="currentColor" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" class="darkToggleIcon_wfgR"><path fill="currentColor" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"></path></svg></button></div><div class="navbarSearchContainer_Bca1"></div></div></div><div role="presentation" class="navbar-sidebar__backdrop"></div></nav><div id="__docusaurus_skipToContent_fallback" class="main-wrapper mainWrapper_z2l0"><div class="docsWrapper_hBAB"><button aria-label="Scroll back to top" class="clean-btn theme-back-to-top-button backToTopButton_sjWU" type="button"></button><div class="docRoot_UBD9"><aside class="theme-doc-sidebar-container docSidebarContainer_YfHR"><div class="sidebarViewport_aRkj"><div class="sidebar_njMd sidebarWithHideableNavbar_wUlq"><a tabindex="-1" class="sidebarLogo_isFc" target="_self" href="/docs/"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiPjwvc3ZnPg==" alt="Application Module Library Logo" class="themedComponent_mlkZ themedComponent--light_NVdE"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiPjwvc3ZnPg==" alt="Application Module Library Logo" class="themedComponent_mlkZ themedComponent--dark_xIcU"><b>Application Module Library</b></a><nav aria-label="Docs sidebar" class="menu thin-scrollbar menu_SIkG"><ul class="theme-doc-sidebar-menu menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/docs/api-reference/">Modlib</a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="menu__link menu__link--sublist" href="/docs/api-reference/category/apps">Apps</a><button aria-label="Collapse sidebar category &#x27;Apps&#x27;" aria-expanded="true" type="button" class="clean-btn menu__caret"></button></div><ul style="display:block;overflow:visible;height:auto" class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/apps/annotate">Annotate</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/apps/area">Area</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/apps/heatmap">Heatmap</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/apps/matcher">Matcher</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/apps/object_counter">Object Counter</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/apps/tracker/">Tracker</a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="menu__link menu__link--sublist menu__link--active" href="/docs/api-reference/category/devices">Devices</a><button aria-label="Collapse sidebar category &#x27;Devices&#x27;" aria-expanded="true" type="button" class="clean-btn menu__caret"></button></div><ul style="display:block;overflow:visible;height:auto" class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/devices/ai_camera/">Ai Camera</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/devices/device">Device</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link menu__link--active" aria-current="page" tabindex="0" href="/docs/api-reference/devices/frame">Frame</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/devices/interpreters/">Interpreters</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/devices/sources">Sources</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/devices/utils/">Utils</a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="menu__link menu__link--sublist" href="/docs/api-reference/category/models">Models</a><button aria-label="Collapse sidebar category &#x27;Models&#x27;" aria-expanded="true" type="button" class="clean-btn menu__caret"></button></div><ul style="display:block;overflow:visible;height:auto" class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/models/model">Model</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/models/post_processors/">Post Processors</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/models/results">Results</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/docs/api-reference/models/zoo/">Zoo</a></li></ul></li></ul></nav></div></div></aside><main class="docMainContainer_TBSr"><div class="container padding-top--md padding-bottom--lg"><div class="row"><div class="col docItemCol_VOVn"><div class="docItemContainer_Djhp"><article><nav class="theme-doc-breadcrumbs breadcrumbsContainer_Z_bl" aria-label="Breadcrumbs"><ul class="breadcrumbs" itemscope="" itemtype="https://schema.org/BreadcrumbList"><li class="breadcrumbs__item"><a aria-label="Home page" class="breadcrumbs__link" href="/docs/"><svg viewBox="0 0 24 24" class="breadcrumbHomeIcon_YNFT"><path d="M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3c.55 0 1-.45 1-1z" fill="currentColor"></path></svg></a></li><li itemscope="" itemprop="itemListElement" itemtype="https://schema.org/ListItem" class="breadcrumbs__item"><a class="breadcrumbs__link" itemprop="item" href="/docs/api-reference/category/devices"><span itemprop="name">Devices</span></a><meta itemprop="position" content="1"></li><li itemscope="" itemprop="itemListElement" itemtype="https://schema.org/ListItem" class="breadcrumbs__item breadcrumbs__item--active"><span class="breadcrumbs__link" itemprop="name">Frame</span><meta itemprop="position" content="2"></li></ul></nav><div class="tocCollapsible_ETCw theme-doc-toc-mobile tocMobile_ITEo"><button type="button" class="clean-btn tocCollapsibleButton_TO0P">On this page</button></div><div class="theme-doc-markdown markdown"><header><h1>Frame</h1></header><div class="module-separator" data-content="Dataclass"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="roi">ROI<a href="#roi" class="hash-link" aria-label="Direct link to ROI" title="Direct link to ROI">​</a></h2>
+<p></p><div class="signature"><b>ROI</b></div>
+ROI(left, top, width, height)<p></p>
+<div></div>
+<ul>
+<li><span class="signature-title">left</span>    Alias for field number 0</li>
+<li><span class="signature-title">top</span>    Alias for field number 1</li>
+<li><span class="signature-title">width</span>    Alias for field number 2</li>
+<li><span class="signature-title">height</span>    Alias for field number 3</li>
+</ul>
+<div class="module-separator" data-content="Dataclass"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="image_type">IMAGE_TYPE<a href="#image_type" class="hash-link" aria-label="Direct link to IMAGE_TYPE" title="Direct link to IMAGE_TYPE">​</a></h2>
+<p></p><div class="signature"><b>IMAGE_TYPE</b></div>
+Representation of the available image types provided in <code>frame.image</code>. Can be used as e.g. <code>IMAGE_TYPE.VGA</code><p></p>
+<div></div>
+<ul>
+<li><span class="signature-title">VGA</span>    </li>
+<li><span class="signature-title">INPUT_TENSOR</span>    </li>
+<li><span class="signature-title">SOURCE</span>    </li>
+</ul>
+<div class="module-separator" data-content="Dataclass"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="result_type">RESULT_TYPE<a href="#result_type" class="hash-link" aria-label="Direct link to RESULT_TYPE" title="Direct link to RESULT_TYPE">​</a></h2>
+<p></p><div class="signature"><b>RESULT_TYPE</b></div>
+Utility dataclass for collecting all Result types.<p></p>
+<div></div>
+<ul>
+<li><span class="signature-title">Classifications</span>    Data class for classification results.</li>
+<li><span class="signature-title">Detections</span>    Data class for object detections.</li>
+<li><span class="signature-title">Poses</span>    Data class for pose estimation results.</li>
+<li><span class="signature-title">Segments</span>    Data class for segmentation results.</li>
+<li><span class="signature-title">Anomaly</span>    Data class for anomaly detection results.</li>
+</ul>
+<div class="module-separator" data-content="Class"></div>
+<h2 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="frame">Frame<a href="#frame" class="hash-link" aria-label="Direct link to Frame" title="Direct link to Frame">​</a></h2>
+<p></p><div class="signature"><b>Frame(</b>timestamp: str, image: numpy.ndarray, image_type: <a href="/docs/api-reference/devices/frame#image_type">IMAGE_TYPE</a>, width: int, height: int, channels: int, detections: Union[<a href="/docs/api-reference/models/results#classifications">Classifications</a>, <a href="/docs/api-reference/models/results#detections">Detections</a>, <a href="/docs/api-reference/models/results#poses">Poses</a>, <a href="/docs/api-reference/models/results#segments">Segments</a>, <a href="/docs/api-reference/models/results#anomaly">Anomaly</a>], new_detection: bool, fps: float, dps: float, color_format: <a href="/docs/api-reference/models/model#color_format">COLOR_FORMAT</a> = &#x27;RGB&#x27;, input_tensor: Optional[numpy.ndarray] = None, roi: Optional[<a href="/docs/api-reference/devices/frame#roi">ROI</a>] = None<b>)</b></div>
+Represents a frame in a device stream.<p></p>
+<div class="codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_biex"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#393A34"><span class="token plain">with device as stream:</span><br></span><span class="token-line" style="color:#393A34"><span class="token plain">    for frame in stream:</span><br></span><span class="token-line" style="color:#393A34"><span class="token plain">        ...</span><br></span></code></pre><div class="buttonGroup__atx"><button type="button" aria-label="Copy code to clipboard" title="Copy" class="clean-btn"><span class="copyButtonIcons_eSgA" aria-hidden="true"><svg viewBox="0 0 24 24" class="copyButtonIcon_y97N"><path fill="currentColor" d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg><svg viewBox="0 0 24 24" class="copyButtonSuccessIcon_LjdS"><path fill="currentColor" d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"></path></svg></span></button></div></div></div>
+<p>The frame object has the following available elements:</p>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="attributes">Attributes<a href="#attributes" class="hash-link" aria-label="Direct link to Attributes" title="Direct link to Attributes">​</a></h3>
+<ul>
+<li>
+<p><span class="signature-title">timestamp: str</span>    The timestamp of the frame.</p>
+</li>
+<li>
+<p><span class="signature-title">image_type: <a href="/docs/api-reference/devices/frame#image_type">IMAGE_TYPE</a></span>    Specification of what is visualised in <code>frame.image</code>.</p>
+</li>
+<li>
+<p><span class="signature-title">width: int</span>    The width of the frame.</p>
+</li>
+<li>
+<p><span class="signature-title">height: int</span>    The height of the frame.</p>
+</li>
+<li>
+<p><span class="signature-title">channels: int</span>    The number of channels in the frame.</p>
+</li>
+<li>
+<p><span class="signature-title">new_detection: bool</span>    Flag if the provided detections are updated or an old copy.</p>
+</li>
+<li>
+<p><span class="signature-title">fps: float</span>    The frames per second of the video stream.</p>
+</li>
+<li>
+<p><span class="signature-title">dps: float</span>    The detections per second in the video stream.</p>
+</li>
+<li>
+<p><span class="signature-title">color_format: <a href="/docs/api-reference/models/model#color_format">COLOR_FORMAT</a></span>    The color format of the frame. Defaults to <code>RGB</code>.</p>
+</li>
+<li>
+<p><span class="signature-title">roi: Optional[<a href="/docs/api-reference/devices/frame#roi">ROI</a>]</span>    Relative ROI of the input tensor. Defaults to None.</p>
+</li>
+</ul>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="properties">Properties<a href="#properties" class="hash-link" aria-label="Direct link to Properties" title="Direct link to Properties">​</a></h3>
+<ul>
+<li>
+<p><span class="signature-title">image: numpy.ndarray</span>    The image data of the frame.</p>
+</li>
+<li>
+<p><span class="signature-title">detections: Union[<a href="/docs/api-reference/models/results#classifications">Classifications</a>, <a href="/docs/api-reference/models/results#detections">Detections</a>, <a href="/docs/api-reference/models/results#poses">Poses</a>, <a href="/docs/api-reference/models/results#segments">Segments</a>, <a href="/docs/api-reference/models/results#anomaly">Anomaly</a>]</span>    The detections in the frame.</p>
+</li>
+<li>
+<p><span class="signature-title">input_tensor: Optional[numpy.ndarray]</span>    The input tensor of the frame. Defaults to None.</p>
+</li>
+</ul>
+<h3 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="methods">Methods<a href="#methods" class="hash-link" aria-label="Direct link to Methods" title="Direct link to Methods">​</a></h3>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="__init__"><span class="signature-title">__init__</span><a href="#__init__" class="hash-link" aria-label="Direct link to __init__" title="Direct link to __init__">​</a></h4>
+<div class="signature"><b>__init__(</b>self, timestamp: str, image: numpy.ndarray, image_type: <a href="/docs/api-reference/devices/frame#image_type">IMAGE_TYPE</a>, width: int, height: int, channels: int, detections: Union[<a href="/docs/api-reference/models/results#classifications">Classifications</a>, <a href="/docs/api-reference/models/results#detections">Detections</a>, <a href="/docs/api-reference/models/results#poses">Poses</a>, <a href="/docs/api-reference/models/results#segments">Segments</a>, <a href="/docs/api-reference/models/results#anomaly">Anomaly</a>], new_detection: bool, fps: float, dps: float, color_format: <a href="/docs/api-reference/models/model#color_format">COLOR_FORMAT</a> = &#x27;RGB&#x27;, input_tensor: Optional[numpy.ndarray] = None, roi: Optional[<a href="/docs/api-reference/devices/frame#roi">ROI</a>] = None<b>)</b></div>
+<p>Initialize self.  See help(type(self)) for accurate signature.</p>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="display"><span class="signature-title">display</span><a href="#display" class="hash-link" aria-label="Direct link to display" title="Direct link to display">​</a></h4>
+<div class="signature"><b>display(</b>self, show_fps_dps: bool = True, cropping: Union[<a href="/docs/api-reference/devices/frame#roi">ROI</a>, Tuple[float, float, float, float], ForwardRef(None)] = None, rotate: Optional[int] = None, flip: Optional[int] = None, resize_image: bool = False<b>)</b></div>
+<p>Display the frame with various options for visualization.</p>
+<p><strong>Args:</strong></p>
+<ul>
+<li><strong>show_fps_dps</strong> (bool = True): If True, display the frames per second (FPS) and detections per second (DPS) on the image.</li>
+<li><strong>cropping</strong> (Union[<a href="/docs/api-reference/devices/frame#roi">ROI</a>, Tuple[float, float, float, float], ForwardRef(None)] = None): The region of interest to display, either as a named tuple ROI or a tuple of four floats
+(left, top, width, height). Defaults to None for no cropping.</li>
+<li><strong>rotate</strong> (Optional[int] = None): The rotation code for the image. Use cv2 rotation codes:</li>
+</ul>
+<blockquote>
+<p>0 or cv2.ROTATE_90_CLOCKWISE: Rotate the image 90 degrees clockwise.<br>
+<!-- -->1 or cv2.ROTATE_180: Rotate the image 180 degrees.<br>
+<!-- -->2 or cv2.ROTATE_90_COUNTERCLOCKWISE: Rotate the image 90 degrees counterclockwise.<br>
+<!-- -->None: No rotation.</p>
+</blockquote>
+<ul>
+<li><strong>flip</strong> (Optional[int] = None): The flip code for the image. Use 0 for vertical, 1 for horizontal, -1 for both, or None for no flip.</li>
+<li><strong>resize_image</strong> (bool = False): If True, resize the image to fit the display window.</li>
+</ul>
+<p><strong>Raises:</strong><br>
+<!-- -->ValueError: If the cropping parameter is not a valid ROI or tuple of 4 floats.</p>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="json"><span class="signature-title">json</span><a href="#json" class="hash-link" aria-label="Direct link to json" title="Direct link to json">​</a></h4>
+<div class="signature"><b>json(</b>self<b>)</b> ‑&gt; dict</div>
+<p>Convert the complete Frame to a JSON-serializable dictionary.</p>
+<p><strong>Returns:</strong> (dict)<br>
+<!-- -->The JSON-serializable dictionary.</p>
+<h4 class="anchor anchorWithHideOnScrollNavbar_WYt5" id="from_json"><span class="signature-title">from_json</span><a href="#from_json" class="hash-link" aria-label="Direct link to from_json" title="Direct link to from_json">​</a></h4>
+<div class="decorator">@classmethod</div>
+<div class="signature"><b>from_json(</b>data: dict<b>)</b> ‑&gt; <a href="/docs/api-reference/devices/frame#frame">Frame</a></div>
+<p>Create a Frame instance from a JSON-serializable dictionary.</p>
+<p><strong>Args:</strong></p>
+<ul>
+<li><strong>data</strong> (dict): JSON-serializable dictionary with frame data.</li>
+</ul>
+<p><strong>Returns:</strong> (<a href="/docs/api-reference/devices/frame#frame">Frame</a>)<br>
+<!-- -->Frame: The Frame instance created from the JSON data.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col"></div><div class="col lastUpdated_JAkA"><span class="theme-last-updated">Last updated<!-- --> on <b><time datetime="2024-11-19T14:53:32.000Z" itemprop="dateModified">Nov 19, 2024</time></b></span></div></div></footer></article><nav class="pagination-nav docusaurus-mt-lg" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/api-reference/devices/device"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Device</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/api-reference/devices/interpreters/"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Interpreters</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#roi" class="table-of-contents__link toc-highlight">ROI</a></li><li><a href="#image_type" class="table-of-contents__link toc-highlight">IMAGE_TYPE</a></li><li><a href="#result_type" class="table-of-contents__link toc-highlight">RESULT_TYPE</a></li><li><a href="#frame" class="table-of-contents__link toc-highlight">Frame</a><ul><li><a href="#attributes" class="table-of-contents__link toc-highlight">Attributes</a></li><li><a href="#properties" class="table-of-contents__link toc-highlight">Properties</a></li><li><a href="#methods" class="table-of-contents__link toc-highlight">Methods</a><ul><li><a href="#__init__" class="table-of-contents__link toc-highlight"><span class="signature-title">__init__</span></a></li><li><a href="#display" class="table-of-contents__link toc-highlight"><span class="signature-title">display</span></a></li><li><a href="#json" class="table-of-contents__link toc-highlight"><span class="signature-title">json</span></a></li><li><a href="#from_json" class="table-of-contents__link toc-highlight"><span class="signature-title">from_json</span></a></li></ul></li></ul></li></ul></div></div></div></div></main></div></div></div></div>
+</body>
+</html>
