@@ -41,7 +41,7 @@ ifeq ($(OS),Windows_NT)
 	CXXFLAGS += -static
 else
     ARCH := $(shell dpkg --print-architecture)
-    ifeq ($(filter $(ARCH),amd64 arm64),)
+    ifeq ($(filter $(ARCH),amd64 arm64 armhf),)
         $(error Unsupported architecture: $(ARCH))
     endif
     TARGET := libposenet_$(ARCH).so

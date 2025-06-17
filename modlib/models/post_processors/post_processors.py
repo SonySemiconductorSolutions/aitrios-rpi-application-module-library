@@ -134,6 +134,8 @@ elif system == "Linux" and arch == "x86_64":
     lib_name = "libposenet_amd64.so"
 elif system == "Linux" and arch == "aarch64":
     lib_name = "libposenet_arm64.so"
+elif system == "Linux" and arch == "armhf":
+    lib_name = "libposenet_armhf.so"
 else:
     raise RuntimeError(f"Unsupported system-architecture combination: {system}-{arch}")
 
