@@ -26,6 +26,6 @@ annotator = Annotator()
 
 with device as stream:
     for frame in stream:
-        detections = frame.detections[frame.detections.confidence > 0.5]
-        annotator.annotate_poses(frame, detections)
+        detections = frame.detections[frame.detections.confidence > 0.4]
+        annotator.annotate_keypoints(frame, detections)
         frame.display()

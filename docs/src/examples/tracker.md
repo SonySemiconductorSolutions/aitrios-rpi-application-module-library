@@ -2,14 +2,24 @@
 title: Tracker
 sidebar_position: 0
 ---
+import ApiLink from '@site/src/components/ApiLink';
 
 # ByteTrack
 
-An implementation of ByteTrack ([github](https://github.com/ifzhang/ByteTrack)) in the Application Module Library.
+An implementation of ByteTrack ([GitHub](https://github.com/ifzhang/ByteTrack)) in the Application Module Library.
 
-ByteTrack provides a state of the art method for multi-object tracking by associating all detection boxes, including low-confidence ones. Unlike traditional methods that discard uncertain detections, ByteTrack recovers true objects and ensures continuous tracking, even in challenging conditions like occlusion or partial visibility.
+<div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start' }}>
+  <div style={{ flex: '1' }}>
+    ByteTrack provides a state of the art method for multi-object tracking by associating all detection boxes, including low-confidence ones. Unlike traditional methods that discard uncertain detections, ByteTrack recovers true objects and ensures continuous tracking, even in challenging conditions like occlusion or partial visibility.
+  </div>
+  <div style={{ flex: '1' }}>
+    ![Tracker](gifs/tracker.gif)
+  </div>
+</div>
 
-The [BYTETracker](../api-reference/apps/tracker/#bytetracker) offers a simple, effective, and robust solution for real-world tracking needs. Below a full example on how to use the BYTETracker in the Application Module Library.
+The <ApiLink to="/api-reference/apps/tracker#bytetracker">BYTETracker</ApiLink> offers a simple, effective, and robust solution for real-world tracking needs. 
+
+Below a full example on how to use the BYTETracker in the Application Module Library.
 
 ```python title="tracker.py"
 from modlib.apps import Annotator, BYTETracker

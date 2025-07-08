@@ -27,7 +27,6 @@ annotator = Annotator()
 
 with device as stream:
     for frame in stream:
-
         detections = frame.detections[frame.detections.class_id == 0]  # Person
         detections = detections[detections.confidence > 0.55]
 

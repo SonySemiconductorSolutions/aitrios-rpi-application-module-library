@@ -16,6 +16,7 @@
 
 import os
 from abc import ABC, abstractmethod
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import cv2
@@ -40,6 +41,16 @@ class Source(ABC):
 
         Returns:
             The next frame as an image array or None if no more frames are available.
+        """
+        pass
+
+    @abstractmethod
+    def timestamp(self) -> datetime:
+        """
+        Abstract method to retrieve the timestamp attached to the current indexed frame.
+
+        Returns:
+            The datetime of the frame.
         """
         pass
 
@@ -105,6 +116,14 @@ class Images(Source):
 
         return image
 
+    @property
+    def timestamp(self):
+        """
+        Returns:
+            Current datetime.
+        """
+        return datetime.now()
+
 
 class Video(Source):
     """
@@ -144,6 +163,9 @@ class Video(Source):
         self.channels = 3
         self.color_format = "BGR"
 
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+        self.start_time = datetime.now()
+
     def get_frame(self) -> np.ndarray | None:
         """
         Retrieve the next image from the provided video stream.
@@ -155,3 +177,15 @@ class Video(Source):
         _, image = self.cap.read()
         self.frame_number += 1
         return image
+
+    @property
+    def timestamp(self):
+        """
+        Get the timestamp attached to the current indexed frame.
+        Calculated as:
+            initialization_start_time + (current_frame_number / video_fps)
+
+        Returns:
+            The datetime of the frame.
+        """
+        return self.start_time + timedelta(seconds=self.frame_number / self.fps)

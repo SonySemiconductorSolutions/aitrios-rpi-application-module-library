@@ -2,19 +2,26 @@
 title: Area
 sidebar_position: 1
 ---
+import ApiLink from '@site/src/components/ApiLink';
 
 # Area
 
-The [Area](../api-reference/apps/area#area) component allows you to define a polygonal region within a frame by specifying a list of at least three points. Each point is defined as a pair of **normalized** coordinates `[x, y]`, where x and y are in the range `[0, 1]`, relative to the frame dimensions. 
+The <ApiLink to="/api-reference/apps/area#area">Area</ApiLink> component allows you to define a polygonal region within a frame by specifying a list of at least three points. Each point is defined as a pair of **normalized** coordinates `[x, y]`, where x and y are in the range `[0, 1]`, relative to the frame dimensions. 
 
 The `area.contains(detections)` method returns a boolean mask indicating whether the center of each detection's bounding box is inside the defined polygon.
 
-The Area component enables more detailed analysis. Using the obtained mask one can:
-- **Filter** all the detections to only include those within the specified area.
-- **Count** the number of detections that fall inisde the area.
+<div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start' }}>
+  <div style={{ flex: '1' }}>
+    The Area component enables more detailed analysis. Using the obtained mask one can:
+    - **Filter** all the detections to only include those within the specified area.
+    - **Count** the number of detections that fall inisde the area.
+  </div>
+  <div style={{ flex: '1' }}>
+    ![Area](gifs/area.gif)
+  </div>
+</div>
 
 Below a full example of how to use Area's in the Application Module Library.
-
 
 ```python title="area.py"
 from modlib.apps import Annotator, Area

@@ -17,12 +17,29 @@
 import base64
 import gzip
 from abc import ABC, abstractmethod
-from collections import namedtuple
+from dataclasses import dataclass
 from typing import Iterator, List, Tuple, Union
 
+import cv2
 import numpy as np
 
-ROI = namedtuple("ROI", ["left", "top", "width", "height"])
+
+@dataclass
+class ROI:
+    """
+    Region of Interest (ROI) specifying the bounding box coordinates.
+    """
+
+    left: float
+    top: float
+    width: float
+    height: float
+
+    def __getitem__(self, index: int) -> float:
+        return (self.left, self.top, self.width, self.height)[index]
+
+    def __iter__(self):
+        return iter((self.left, self.top, self.width, self.height))
 
 
 class Result(ABC):
@@ -390,6 +407,14 @@ class Detections(Result):
         """
         return self.bbox[:, 3] - self.bbox[:, 1]
 
+    @property
+    def center_points(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        A tuple containing two arrays (x_centers, y_centers),
+        where each array contains the center coordinates of the bounding boxes.
+        """
+        return ((self.bbox[:, 0] + self.bbox[:, 2]) / 2, (self.bbox[:, 1] + self.bbox[:, 3]) / 2)
+
 
 class Poses(Result):
     """
@@ -408,14 +433,13 @@ class Poses(Result):
         confidence=np.empty((0,)),
         keypoints=np.empty((0,)),
         keypoint_scores=np.empty((0,)),
-        bbox=np.empty((0, 4)),
+        bbox=None,
     ) -> None:
-
         self.n_detections = n_detections
         self.confidence = confidence
         self.keypoints = keypoints
         self.keypoint_scores = keypoint_scores
-        self.bbox = bbox
+        self._bbox = bbox
         self.tracker_id = None
 
         self._roi_compensated = False
@@ -424,10 +448,38 @@ class Poses(Result):
         if roi == (0, 0, 1, 1) or self._roi_compensated or self.keypoints.size == 0:
             return
 
-        self.keypoints[:, 1::2] = roi[0] + self.keypoints[:, 1::2] * roi[2]
-        self.keypoints[:, 0::2] = roi[1] + self.keypoints[:, 0::2] * roi[3]
+        self.keypoints[:, :, 0] = roi[0] + self.keypoints[:, :, 0] * roi[2]
+        self.keypoints[:, :, 1] = roi[1] + self.keypoints[:, :, 1] * roi[3]
+
+        if self._bbox is not None:
+            self._bbox[:, 0] = roi[0] + self._bbox[:, 0] * roi[2]
+            self._bbox[:, 1] = roi[1] + self._bbox[:, 1] * roi[3]
+            self._bbox[:, 2] = roi[0] + self._bbox[:, 2] * roi[2]
+            self._bbox[:, 3] = roi[1] + self._bbox[:, 3] * roi[3]
 
         self._roi_compensated = True
+
+    @property
+    def bbox(self):
+        """
+        Get the bounding box corresponding to the pose detection.
+        """
+        if self._bbox is not None:
+            return self._bbox
+        elif self.n_detections == 0:
+            return None
+        else:
+            # Create bounding box around the outer keypoints
+            kpts = self.keypoints.reshape(self.n_detections, -1, 2)  # (N, 17, 2)
+            mins = np.ma.min(kpts, axis=1).filled(0)  # (N, 2) equals 0 for invalid points
+            maxs = np.ma.max(kpts, axis=1).filled(0)  # (N, 2) equals 0 for invalid points
+
+            # [x1, y1, x2, y2] of N detections
+            return np.column_stack([mins[:, 0], mins[:, 1], maxs[:, 0], maxs[:, 1]])
+
+    @bbox.setter
+    def bbox(self, value):
+        self._bbox = value
 
     def __iter__(self) -> Iterator[Tuple[np.ndarray, float, np.ndarray, int]]:
         for i in range(len(self)):
@@ -457,7 +509,8 @@ class Poses(Result):
         res.confidence = self.confidence[index]
         res.keypoints = self.keypoints[index]
         res.keypoint_scores = self.keypoint_scores[index] if self.keypoint_scores is not None else None
-        res.bbox = self.bbox[index] if len(self.bbox) > 0 else np.empty((0, 4))
+        if self._bbox is not None:
+            res._bbox = self._bbox[index] if len(self._bbox) > 0 else None
         res.tracker_id = self.tracker_id[index] if self.tracker_id is not None else None
         return res
 
@@ -488,11 +541,12 @@ class Poses(Result):
         Returns a copy of the current detections.
         """
         new_instance = Poses()
-        new_instance.bbox = np.copy(self.bbox)
         new_instance.confidence = np.copy(self.confidence)
         new_instance.keypoints = np.copy(self.keypoints)
         new_instance.keypoint_scores = np.copy(self.keypoint_scores)
         new_instance.tracker_id = np.copy(self.tracker_id)
+        if self._bbox is not None:
+            new_instance._bbox = np.copy(self._bbox)
 
         return new_instance
 
@@ -550,7 +604,14 @@ class Segments(Result):
     mask: np.ndarray  #: Mask arrays containing the id for each identified segment.
 
     def __init__(self, mask: np.ndarray = np.empty((0,))):
-        self.mask = mask.astype(np.uint8)
+        self.mask = mask.astype(np.int8)
+        self._bbox = None
+        self.oriented_bboxes = None
+        self.instance_masks = None
+        self.instance_args = None
+        self.class_id = None
+        self.confidence = None
+        self.tracker_id = None
 
         self._roi_compensated = False
 
@@ -558,8 +619,9 @@ class Segments(Result):
         if roi == (0, 0, 1, 1) or self._roi_compensated:
             return
 
+        # initialize as background values: -1
         h, w = self.mask.shape
-        new_mask = np.zeros((int(h / roi[3]), int(w / roi[2])), dtype=self.mask.dtype)
+        new_mask = -np.ones((int(h / roi[3]), int(w / roi[2])), dtype=self.mask.dtype)
         start_h, start_w = int(roi[1] * h / roi[3]), int(roi[0] * w / roi[2])
         new_mask[start_h : start_h + h, start_w : start_w + w] = self.mask
         self.mask = new_mask
@@ -576,16 +638,198 @@ class Segments(Result):
     @property
     def indeces(self) -> List[int]:
         """
-        Found indeces in the mask and ignore the background (id: 0).
+        Found indeces in the mask and ignore the background (id: -1).
         """
         found_indices = np.unique(self.mask)
-        return found_indices[found_indices != 0]
+        return found_indices[found_indices != -1]
 
     def get_mask(self, id: int):
         """
         Returns the mask of a specific index.
         """
         return (self.mask == id).astype(np.uint8)
+
+    def instance_segmentation(self, width: int, height: int, instance_args: object):
+        """
+        Perform connected component analysis on a semantic segmentation mask to provide instance segmentation
+        masks. Applies a watershed algorithm to CCA output to improve the results that are connected
+
+        Parameters:
+        instance_args: Arguments for instance_segmentation
+
+        Returns:
+        list: A list of binary masks, where each mask represents a single instance.
+        """
+        self.w = width
+        self.h = height
+
+        if self.instance_args is None:
+            if instance_args is None:
+                raise ValueError("Input default 'instance_args' to run CCA")
+            self.instance_args = instance_args
+
+        segmentation_mask = np.where(self.mask == -1, 0, self.mask)
+        self.instance_masks = []
+        self.visual_masks = []
+        self.class_id = []
+
+        # Extract unique class labels from the mask
+        class_labels = np.unique(segmentation_mask)
+        class_labels = class_labels[class_labels != 0]  # Exclude background (label 0)
+
+        # Perform CCA and Watershed for each class label
+        for class_label in class_labels:
+            # Create a binary mask for the current class
+            binary_mask = (segmentation_mask == class_label).astype(np.uint8)
+
+            # Label connected components in the binary mask using OpenCV
+            num_labels, labeled_mask = cv2.connectedComponents(binary_mask)
+            labeled_mask = labeled_mask + 1
+            E_kernel = np.ones((self.instance_args.erosion_kernel, self.instance_args.erosion_kernel), np.uint8)
+            D_kernel = np.ones((self.instance_args.dilate_kernel, self.instance_args.dilate_kernel), np.uint8)
+            opening = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, E_kernel, iterations=2)
+
+            sure_bg = cv2.dilate(opening, D_kernel, iterations=self.instance_args.dilate_iteration)
+            # Improve results with the Watershed algorithm
+            # Step 1: Compute the distance transform
+            dist_transform = cv2.distanceTransform(opening, cv2.DIST_L2, 5)
+
+            # Step 2: Normalize the distance transform
+            dist_transform = cv2.normalize(dist_transform, None, 0, 1.0, cv2.NORM_MINMAX)
+
+            # Step 3: Threshold the distance transform to obtain markers
+            _, sure_fg = cv2.threshold(
+                dist_transform, self.instance_args.dist_threshold * dist_transform.max(), 255, cv2.THRESH_BINARY
+            )
+            sure_fg = np.uint8(sure_fg)
+
+            sure_fg = cv2.erode(sure_fg, E_kernel, iterations=self.instance_args.erosion_iteration)
+
+            unknown = cv2.subtract(sure_bg, sure_fg)
+
+            # Step 4: Perform connected components on the markers
+            _, markers = cv2.connectedComponents(sure_fg)
+            # Step 5: Add one to all labels so that sure background is not 0 but 1
+            markers = markers + 1
+
+            # Step 6: Mark the unknown regions (where binary_mask is 0) with 0
+            markers[unknown == 255] = 0
+
+            # Step 7: Apply the Watershed algorithm
+            markers = cv2.watershed(cv2.cvtColor(binary_mask * 255, cv2.COLOR_GRAY2BGR), markers)
+
+            # Step 8: Label the watershed regions
+            visual_mask = labeled_mask
+            labeled_mask = np.zeros_like(markers)
+
+            labeled_mask[markers > 1] = markers[markers > 1]
+            visual_mask[markers > 1] = markers[markers > 1]
+
+            unique_labels = np.unique(labeled_mask)
+            # Display output for config mode
+            if self.instance_args.config_mode:
+                cv2.imshow(f"fg-{class_label}", sure_fg)
+                cv2.imshow(f"dist-{class_label}", dist_transform)
+
+            # Step 9: Filter out small sized masks
+            for label_id in unique_labels:
+                filtered_mask = np.zeros_like(labeled_mask)
+                visual_filtered_mask = np.zeros_like(visual_mask)
+                if label_id <= 1:
+                    continue
+                component_size = np.sum(labeled_mask == label_id)
+                if component_size >= self.instance_args.size_threshold:
+                    filtered_mask[labeled_mask == label_id] = 1
+                    visual_filtered_mask[visual_mask == label_id] = 1
+
+                    filtered_mask = np.where(filtered_mask == -1, 0, filtered_mask)
+                    visual_filtered_mask = np.where(visual_filtered_mask == -1, 0, visual_filtered_mask)
+
+                    # Store the labeled mask in the arrays
+                    self.instance_masks.append(filtered_mask)
+                    self.visual_masks.append(visual_filtered_mask)
+                    self.class_id.append(int(class_label))
+
+        return self.instance_masks
+
+    def oriented_bbox(self):
+        """
+        Calculate oriented bounding boxes for each instance mask. Can't be used in tracker
+
+        Returns:
+        list: A list of bounding boxes. Each bounding box is represented as a tuple.
+              For oriented bounding boxes: ((cx, cy), (w, h), angle)
+        """
+
+        if len(self.instance_masks) == 0:
+            return None
+        else:
+            self.oriented_bboxes = []
+            for mask in self.instance_masks:
+                resized_mask = cv2.resize(mask.astype(np.uint8), (self.w, self.h))
+                # Find contours of the mask
+                contours, _ = cv2.findContours(resized_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                if len(contours) == 0:
+                    continue
+                # Calculate oriented bounding box
+                rect = cv2.minAreaRect(contours[0])
+                box_points = cv2.boxPoints(rect)
+                box_points = np.int32(box_points)
+                self.oriented_bboxes.append(box_points)
+            self.oriented_bboxes = np.array((self.oriented_bboxes))
+            return self.oriented_bboxes
+
+    @property
+    def bbox(self):
+        """
+        Calculate bounding boxes for each instance mask. Note, bboxes will use the
+        instance_masks with are different to visual_masks so can look different in
+        visulaization
+
+        Returns:
+        list: A list of bounding boxes. Each bounding box is represented as a tuple.
+              For normal bounding boxes: (x, y, w, h)
+        """
+
+        if self._bbox is not None:
+            return self._bbox
+        elif len(self.instance_masks) == 0:
+            self._bbox = np.empty((0, 4))
+            self.confidence = np.empty(len(self._bbox))
+            return self._bbox
+        else:
+            self._bbox = []
+            for mask in self.instance_masks:
+                resized_mask = cv2.resize(mask.astype(np.uint8), (self.w, self.h))
+                # Find contours of the mask
+                contours, _ = cv2.findContours(resized_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                if len(contours) == 0:
+                    continue
+                # Calculate normal bounding box
+                x, y, w, h = cv2.boundingRect(contours[0])
+                self._bbox.append((x / self.w, y / self.h, (x + w) / self.w, (y + h) / self.h))
+            self._bbox = np.array(self._bbox)
+            self.confidence = np.ones(len(self._bbox))
+            return self._bbox
+
+    @bbox.setter
+    def bbox(self, value):
+        self._bbox = value
+
+    def __len__(self):
+        if self.bbox is not None:
+            return len(self.bbox)
+        else:
+            return 0
+
+    def __iter__(self) -> Iterator[Tuple[np.ndarray, float, np.ndarray, int]]:
+        for i in range(len(self)):
+            yield (
+                self.class_id[i] if self.class_id is not None else None,
+                self.instance_masks[i] if self.instance_masks is not None else None,
+                self.bbox[i] if self.bbox is not None else None,
+                self.tracker_id[i] if self.tracker_id is not None else None,
+            )
 
     def __str__(self) -> str:
         """

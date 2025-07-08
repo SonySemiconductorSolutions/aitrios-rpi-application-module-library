@@ -8,8 +8,8 @@ sidebar_position: 0
 
 ## Setup your device
 
-:::info  
-The Application Module Library currently supports the **Raspberry Pi AI Camera** only.  
+:::warning  
+This getting started guide is focussing on the **Raspberry Pi AI Camera**. If you are working with the **Triton® Smart camera**, please proceed immediately to the [Triton® documentation](../devices/triton).
 :::
 
 The Raspberry Pi AI Camera is an extremely capable piece of hardware, enabling you to build powerful AI applications on your Raspberry Pi. By offloading the AI inference to the IMX500 accelerator chip, more computational resources are available to handle application logic right on the edge!
@@ -25,13 +25,12 @@ Install the Application Module Library in your current Python (virtual) environm
 ```shell
 sudo apt update && sudo apt full-upgrade
 sudo apt install imx500-all
-sudo apt install python3-opencv python3-munkres python3-picamera2
 ```
 
 2. (Optional) Create and enable a virtual environment.
 
 ```shell
-python -m venv .venv --system-site-packages
+python -m venv .venv
 source .venv/bin/activate
 ```
 
@@ -39,6 +38,10 @@ source .venv/bin/activate
 ```shell
 pip install git+https://github.com/SonySemiconductorSolutions/aitrios-rpi-application-module-library.git
 ```
+
+:::warning  
+We are currently working on publishing Modlib to the PyPI index. This will make it easier for developers to install and manage the library using pip and allow for a more streamlined setup process. Stay tuned for updates!
+:::
 
 ## Verify your setup
 

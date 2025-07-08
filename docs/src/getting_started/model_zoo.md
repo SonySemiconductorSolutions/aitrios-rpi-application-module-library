@@ -35,9 +35,8 @@ device.deploy(model)
 
 with device as stream:
     for frame in stream:
-
         for i, label in enumerate([model.labels[id] for id in frame.detections.class_id[:3]]):
-            text = f"{i+1}. {label}: {frame.detections.confidence[i]:.2f}"
+            text = f"{i + 1}. {label}: {frame.detections.confidence[i]:.2f}"
             cv2.putText(frame.image, text, (50, 30 + 40 * (i + 1)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (100, 0, 100), 2)
 
         frame.display()
@@ -55,14 +54,14 @@ device = AiCamera()
 model = SSDMobileNetV2FPNLite320x320()
 device.deploy(model)
 
-annotator = Annotator(thickness=1, text_thickness=1, text_scale=0.4)
+annotator = Annotator(thickness=2, text_thickness=1, text_scale=0.4)
 
 with device as stream:
     for frame in stream:
         detections = frame.detections[frame.detections.confidence > 0.55]
         labels = [f"{model.labels[class_id]}: {score:0.2f}" for _, score, class_id, _ in detections]
 
-        annotator.annotate_boxes(frame, detections, labels=labels)
+        annotator.annotate_boxes(frame, detections, labels=labels, alpha=0.3, corner_radius=10)
         frame.display()
 ```
 
@@ -82,7 +81,6 @@ annotator = Annotator()
 
 with device as stream:
     for frame in stream:
-
         annotator.annotate_segments(frame, frame.detections)
         frame.display()
 ```
@@ -103,8 +101,8 @@ annotator = Annotator()
 
 with device as stream:
     for frame in stream:
-
-        annotator.annotate_poses(frame, frame.detections)
+        detections = frame.detections[frame.detections.confidence > 0.4]
+        annotator.annotate_keypoints(frame, detections)
         frame.display()
 ```
 

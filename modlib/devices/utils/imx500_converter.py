@@ -87,19 +87,23 @@ class IMX500Converter:
             raise ValueError(f"Unsupported model type: {model_type}")
 
         flag = ""
-        if os.path.exists(output_dir):
+        if os.path.exists(os.path.join(output_dir, "packerOut.zip")):
             if overwrite is None:
                 user_input = input(
                     f"""
-                The given output directory '{output_dir}' already exists.
-                Please select a different directory or confirm to continue (overwrite existing converter output).
-                Type 'yes' to continue or 'no' to abort (y/n):
-                """
+                    The given output directory '{output_dir}' already contains a `packerOut.zip` file.
+                    1. Type 'yes/y' to recompile and overwrite the existing packerOut.zip file
+                    2. Press <Enter> to use the already existing packerOut.zip file
+                    3. Press 'no/n' to abort
+                    Choice (y/<Enter>/n): """
                 )
             else:
                 if not isinstance(overwrite, bool):
                     raise ValueError("Invalid value for overwrite. It must be True or False.")
-                user_input = "y" if overwrite else "n"
+                user_input = "y" if overwrite else "<Enter>"
+
+            if user_input.lower() in ("no", "n"):
+                sys.exit()
 
             if user_input.lower() not in ("yes", "y"):
                 logger.info("Model conversion aborted.")

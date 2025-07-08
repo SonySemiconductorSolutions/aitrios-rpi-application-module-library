@@ -24,7 +24,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-
 from typing import Optional, Tuple
 
 import numpy as np
@@ -188,9 +187,7 @@ class KalmanFilter(object):
 
         return mean, covariance
 
-    def update(
-        self, mean: np.ndarray, covariance: np.ndarray, measurement: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    def update(self, mean: np.ndarray, covariance: np.ndarray, measurement: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Run Kalman filter correction step.
 

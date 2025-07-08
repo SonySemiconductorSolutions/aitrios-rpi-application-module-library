@@ -4,7 +4,7 @@ sidebar_position: 1
 ---
 
 
-# Why an Application Module Library?
+# Why modlib?
 
 ## Purpose
 
@@ -14,7 +14,7 @@ The Application Module Library (modlib) is an SDK designed for creating **end-to
 >  
 > 💎 **All in one**: Provides integration with all AITRIOS tools (Converter, Packager, Brain Builder, etc.) into one environment.  
 > 📦 **Scalable**: The modular design of the library allows easy to add new IMX500 devices, new AI models and Apps.  
-> ⏱️ **Intuitive & Fast & Compact**: Reduce development time by providing templates for Phyton users to create E2E solution.​ In only a couple of minutes!​
+> ⏱️ **Intuitive & Fast & Compact**: Reduce development time by providing templates for Python users to create E2E solution.​ In only a couple of minutes!​
 
 
 ## Modularity

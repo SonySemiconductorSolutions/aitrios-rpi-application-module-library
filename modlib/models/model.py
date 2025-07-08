@@ -153,11 +153,29 @@ class Model(ABC):
         else:
             raise ValueError("Output tensor sizes not available")
 
+    @property
+    def info(self):
+        """
+        Model info. Only available after calling `_get_network_info` on the model's info file.
+        """
+        if self.__info:
+            return self.__info
+        else:
+            raise ValueError("Model info not available.")
+
+    @info.setter
+    def info(self, info):
+        self.__info = info
+
     def _get_network_info(self, info_file: Optional[Path] = None):
         if self.model_type == MODEL_TYPE.RPK_PACKAGED:
             self.__info = self.__get_network_info_rpk(self.model_file)
-        elif self.model_type == MODEL_TYPE.CONVERTED:
-            self.__info = self.__get_network_info_converted(self.model_file)
+        elif self.model_type == MODEL_TYPE.CONVERTED and info_file is not None:
+            # TODO: Extract model info from the converted packerout file.
+            # NOTE: Assumption is that all info is available in packerOut.zip and can be parsed there
+            # But for now the info file is only used in the AiCamera passing the rpk file
+            # self.__info = self.__get_network_info_converted(self.model_file)
+            self.__info = self.__get_network_info_rpk(info_file)
         elif self.model_type in (MODEL_TYPE.KERAS, MODEL_TYPE.ONNX) and info_file is not None:
             # TODO: replace info file by the converted file
             # NOTE: Assumption is that all info is available in packerOut.zip and can be parsed there
@@ -253,19 +271,13 @@ class Model(ABC):
         info["input_tensor"]["input_format"] = input_format
         if input_format == "RGB" or input_format == "BGR":
             norm_val_0 = (
-                inputTensorNorm_K03
-                if ((inputTensorNorm_K03 >> 12) & 1) == 0
-                else -((~inputTensorNorm_K03 + 1) & 0x1FFF)
+                inputTensorNorm_K03 if ((inputTensorNorm_K03 >> 12) & 1) == 0 else -((~inputTensorNorm_K03 + 1) & 0x1FFF)
             )
             norm_val_1 = (
-                inputTensorNorm_K13
-                if ((inputTensorNorm_K13 >> 12) & 1) == 0
-                else -((~inputTensorNorm_K13 + 1) & 0x1FFF)
+                inputTensorNorm_K13 if ((inputTensorNorm_K13 >> 12) & 1) == 0 else -((~inputTensorNorm_K13 + 1) & 0x1FFF)
             )
             norm_val_2 = (
-                inputTensorNorm_K23
-                if ((inputTensorNorm_K23 >> 12) & 1) == 0
-                else -((~inputTensorNorm_K23 + 1) & 0x1FFF)
+                inputTensorNorm_K23 if ((inputTensorNorm_K23 >> 12) & 1) == 0 else -((~inputTensorNorm_K23 + 1) & 0x1FFF)
             )
             norm_val = [norm_val_0, norm_val_1, norm_val_2]
             info["input_tensor"]["norm_val"] = norm_val
@@ -294,9 +306,7 @@ class Model(ABC):
                     else -((~inputTensorNorm_K20 + 1) & 0x0FFF)
                 )
             div_val_1 = (
-                inputTensorNorm_K11
-                if ((inputTensorNorm_K11 >> 11) & 1) == 0
-                else -((~inputTensorNorm_K11 + 1) & 0x0FFF)
+                inputTensorNorm_K11 if ((inputTensorNorm_K11 >> 11) & 1) == 0 else -((~inputTensorNorm_K11 + 1) & 0x0FFF)
             )
             info["input_tensor"]["div_val"] = [div_val_0, div_val_1, div_val_2]
             info["input_tensor"]["div_shift"] = 6
@@ -324,7 +334,20 @@ class Model(ABC):
                     shape = [int(dim.get("size")) for dim in output_tensor.find("dimensions")]
                     output_shapes.append(shape)
 
-        # NOTE: much more information can be extracted from the packerout file.
+        # TODO: extract all required information from the packerout file.
+        # info = {
+        #     "input_tensor": {
+        #         "width": None,
+        #         "height": None,
+        #         "input_format": None,
+        #         "norm_val": None,
+        #         "norm_shift": None,
+        #         "div_val": None,
+        #         "div_shift": None,
+        #     },
+        #     "network_info": {},
+        # }
+
         info = {
             "input_tensor": {
                 "width": input_shape[1],

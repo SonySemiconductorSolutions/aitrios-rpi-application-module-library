@@ -22,7 +22,7 @@ from .models import (
     EfficientNetV2B0,
     EfficientNetV2B1,
     EfficientNetV2B2,
-    Higherhrnet,
+    HigherHRNet,
     InputTensorOnly,
     MNASNet1_0,
     MobileNetV2,

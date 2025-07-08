@@ -26,6 +26,5 @@ annotator = Annotator()
 
 with device as stream:
     for frame in stream:
-
         annotator.annotate_segments(frame, frame.detections)
         frame.display()

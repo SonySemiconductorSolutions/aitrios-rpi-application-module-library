@@ -24,7 +24,6 @@ from ..post_processors import (
     pp_cls,
     pp_cls_softmax,
     pp_higherhrnet,
-    pp_od_bcsn,
     pp_od_bscn,
     pp_od_efficientdet_lite0,
     pp_posenet,
@@ -586,11 +585,11 @@ class Posenet(Model):
         return pp_posenet(output_tensors)
 
 
-class Higherhrnet(Model):
+class HigherHRNet(Model):
     """
     ```
-    from modlib.models.zoo import Higherhrnet
-    model = Higherhrnet()
+    from modlib.models.zoo import HigherHRNet
+    model = HigherHRNet()
     ```
     The network file `imx500_network_higherhrnet_coco.rpk` is downloaded from
     the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)

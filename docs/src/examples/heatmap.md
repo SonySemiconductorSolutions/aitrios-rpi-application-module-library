@@ -2,12 +2,16 @@
 title: Heatmap
 sidebar_position: 4
 ---
+import ApiLink from '@site/src/components/ApiLink';
 
 # Heatmap
 
-The [Heatmap](../api-reference/apps/heatmap#heatmap) component is used to visualize the density of detected objects across time by overlaying a heatmap onto the frame. The `heatmap.update(frame, detections)` method stores detections across multiple frames to track the frequency of object appearances in different regions of the frame.
+The <ApiLink to="/api-reference/apps/heatmap#heatmap">Heatmap</ApiLink> component is used to visualize the density of detected objects across time by overlaying a heatmap onto the frame. The `heatmap.update(frame, detections)` method stores detections across multiple frames to track the frequency of object appearances in different regions of the frame.
 
 The heatmap is created by dividing the frame into a grid of cells, with each cell accumulating detection counts. The `cell_size` parameter controls the size of each grid cell.
+
+![Heatmap](gifs/heatmap.gif)
+
 Below an example of how to use a Heatmap in the Application Module Library.
 
 

@@ -25,9 +25,8 @@ device.deploy(model)
 
 with device as stream:
     for frame in stream:
-
         for i, label in enumerate([model.labels[id] for id in frame.detections.class_id[:3]]):
-            text = f"{i+1}. {label}: {frame.detections.confidence[i]:.2f}"
+            text = f"{i + 1}. {label}: {frame.detections.confidence[i]:.2f}"
             cv2.putText(frame.image, text, (50, 30 + 40 * (i + 1)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (100, 0, 100), 2)
 
         frame.display()

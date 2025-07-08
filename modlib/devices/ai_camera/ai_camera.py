@@ -14,26 +14,36 @@
 # limitations under the License.
 #
 
+import atexit
 import ctypes
+import logging
 import os
-import queue
+import selectors
 import threading
 import time
-from collections import deque
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Tuple, Union
 
 import numpy as np
 
 from modlib.models import COLOR_FORMAT, MODEL_TYPE, Model
-from modlib.models.results import Anomaly, Classifications, Detections, Poses, Segments
 from modlib.models.zoo import InputTensorOnly
 
-from ..device import Device
+from ..device import Device, Rate
 from ..frame import IMAGE_TYPE, ROI, Frame
 from ..utils import IMX500Converter, check_dir_required
+from .allocator import Allocator, DmaAllocator
+from .camera_manager import CameraManager
+from .imx500 import IMX500
+from .libcamera_config import LibcameraConfig
 from .rpk_packager import RPKPackager
+
+# Global Libcamera Manager
+CM = CameraManager()
+
+logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(name)s]  %(levelname)s %(message)s")
+logger = logging.getLogger(__name__.split(".")[-1])
 
 SENSOR_W = 4056
 SENSOR_H = 3040
@@ -86,6 +96,9 @@ class AiCamera(Device):
         headless: Optional[bool] = False,
         enable_input_tensor: Optional[bool] = False,
         timeout: Optional[int] = None,
+        frame_rate: Optional[int] = 30,
+        image_size: Tuple[int, int] = (640, 480),
+        num: Optional[int] = 0,
     ):
         """
         Initialize the AiCamera device.
@@ -94,56 +107,426 @@ class AiCamera(Device):
             headless: Initialising the AiCamera in headless mode means `frame.image` is never processed and unavailable.
             enable_input_tensor: When enabling input tensor, `frame.image` will be replaced by the input tensor image.
             timeout: If set, automatically stop the device loop after the specified seconds.
+            frame_rate: The frames per second applied to the libcamera configuration.
+            image_size: Resolution of the frame.image. Defaults to (640, 480) which has the original aspect ratio.
+            num: The camera number to select which camera to use, when more then one AiCamera connected to libcamera.
         """
+        self.config = None
+        self.imx500 = None
         self.model = None
-        self.picam2 = None
-        self.imx500_model = None
-        self.roi_relative = None
-        self.image = None
+        self.roi_it = None  # ROI input tensor
+        self.roi_hires = None  # ROI high resolution image
+        self.scaler_crop = None
+        self.allocator = Allocator()
 
-        self.frame_queue = queue.Queue(maxsize=5)
-        self.stop_event = threading.Event()
+        # Get the real libcamera internal number (First one listed)
+        if len(CM.global_cameras) > 0:
+            self.camera_num = CM.global_cameras[num]["Num"]
+            self.camera_id = CM.global_cameras[num]["Id"]
+            self.camera = CM.cms.cameras[self.camera_num]
+        else:
+            raise RuntimeError("No camera found by libcamera.")
 
+        # Libcamera request buffer
+        # CM notifies when request ready to be processed
+        self._requests = []
+        self._requestslock = threading.Lock()  # request buffer lock
+        self.notifyme_r, self.notifyme_w = os.pipe2(os.O_NONBLOCK)
+        self.notifymeread = os.fdopen(self.notifyme_r, "rb")
+        self.lock = threading.Lock()  # global request process lock
+        self.req_lock = threading.Lock()  # global libcamera request lock
+
+        # Frame buffer
+        self._frames = []
+        self._frameslock = threading.Lock()  # frame buffer lock
+        self._frame_ready = threading.Condition(self._frameslock)
         self.last_detections = None
-        self.last_input_tensor = None
-        self.detection_times = deque(maxlen=30)
-        self.last_detection_time = time.perf_counter()
-        self.dps = 0
 
+        # Process thread
+        self._proc_started = threading.Event()
+        self._proc_abort = threading.Event()
+        self._proc_thread = None
+
+        atexit.register(self.stop)
+        self._running = False
+
+        self.rps = Rate()
+        self.fps = Rate()
+        self.dps = Rate()
+
+        self._monitor_abort = threading.Event()
+        self._monitor_rate_thread = None
+
+        self.frame_rate = frame_rate
+        self.image_size = image_size
         super().__init__(
             headless=headless,
             enable_input_tensor=enable_input_tensor,
             timeout=timeout,
         )
 
-    # <------------ Entrypoints ------------>
-    def set_input_tensor_cropping(self, roi_relative: Union[ROI, Tuple[float, float, float, float]]):
+    def _initiate(self, frame_rate, enable_input_tensor, scaler_crop, image_size):
+        # 1. Initiate libcamera device & libcamera event listener
+        CM.add(self)
+        self.camera.acquire()
+
+        # 2. Configure libcamera device
+        self.config = LibcameraConfig(self.camera, frame_rate, enable_input_tensor, scaler_crop, image_size)
+        libcamera_config = self.config.create()
+        if self.camera.configure(libcamera_config):
+            raise RuntimeError(f"Libcamera configuration failed: {self.config.camera_config}")
+
+        # 3. Allocate
+        self.allocator = DmaAllocator()
+        self.allocator.allocate(libcamera_config, self.config.camera_config.get("use_case"))
+
+    def _process_requests_func(self):
+        sel = selectors.DefaultSelector()
+        sel.register(self.notifyme_r, selectors.EVENT_READ, self._process_requests)
+        self._proc_started.set()
+
+        while not self._proc_abort.is_set():
+            events = sel.select(0.2)
+            for key, _ in events:
+                self.notifymeread.read()
+                callback = key.data
+                callback()
+
+    def _process_requests(self):
+        with self._requestslock:
+            requests = self._requests
+            self._requests = []
+
+        with self.lock:  # for the extracting the image and output tensor
+            if not requests:
+                return
+            req = requests.pop(0)  # possibly more then 1 request in the request buffer to process
+
+            # Process information in the libcamera request
+            # And add the frocessed information as a Frame to the frame_queue
+            self._parse_request(req)
+
+            req.release()
+
+            # Release possible remaining requests, those leftovers are thrown away
+            for req in requests:
+                logger.debug("Processing thread is dropping incoming libcamera requests.")
+                req.release()
+
+    def _update_input_tensor_image(self, req):
+        input_tensor = req.metadata.get("CnnInputTensor")
+        if not input_tensor:
+            raise ValueError(
+                """
+                The provided model was converted with input tensor disabled,
+                Provide a model with input tensor enabled.
+            """
+            )
+
+        w, h = self.model.input_tensor_size
+        r1 = np.array(input_tensor, dtype=np.uint8).astype(np.int32).reshape((3,) + (h, w))[(2, 1, 0), :, :]
+        norm_val = self.model.info["input_tensor"]["norm_val"]
+        norm_shift = self.model.info["input_tensor"]["norm_shift"]
+        div_val = self.model.info["input_tensor"]["div_val"]
+        div_shift = self.model.info["input_tensor"]["div_shift"]
+        for i in [0, 1, 2]:
+            r1[i] = ((((r1[i] << norm_shift[i]) - norm_val[i]) << div_shift) // div_val[i]) & 0xFF
+
+        self.input_tensor_image = np.transpose(r1, (1, 2, 0)).astype(np.uint8).copy()
+
+    def _parse_request(self, req):
+        # 1. capture-metadata
+        output_tensor = req.metadata.get("CnnOutputTensor")
+        detections = None
+        new_detection = False
+
+        if isinstance(self.model, InputTensorOnly):
+            pass
+        elif output_tensor:
+            np_output = np.fromiter(output_tensor, dtype=np.float32)
+
+            offset = 0
+            outputs = []
+            for tensor_shape in self._get_output_tensor_shape(req):
+                size = np.prod(tensor_shape)
+                outputs.append(np_output[offset : offset + size].reshape(tensor_shape, order="F"))
+                offset += size
+
+            # Post processing
+            detections = self.model.post_process(outputs)
+
+            new_detection = True
+            self.last_detections = detections
+            self.dps.update()
+
+        elif self.last_detections is None:
+            # Missing output tensor in frame & no detection yet
+            # Skip adding to frame_queue
+            return
+        else:
+            detections = self.last_detections
+
+        # 2. get VGA or input tensor image
+        if self.enable_input_tensor:
+            # only update input tensor when available
+            if new_detection:
+                self._update_input_tensor_image(req)
+            image = self.input_tensor_image
+        else:
+            image = req.image
+        h, w, c = image.shape
+
+        with self._frameslock:
+            self._frames.append(
+                Frame(
+                    timestamp=datetime.now().isoformat(),
+                    image=image,
+                    image_type=IMAGE_TYPE.VGA if not self.enable_input_tensor else IMAGE_TYPE.INPUT_TENSOR,
+                    width=w,
+                    height=h,
+                    channels=c,
+                    detections=detections,
+                    new_detection=new_detection,
+                    fps=self.fps.value,
+                    dps=self.dps.value,
+                    color_format=COLOR_FORMAT.BGR,  # Both VGA image as input_tensor_image always in BGR format
+                    input_tensor=None,
+                    roi=self.roi,
+                )
+            )
+
+            self._frame_ready.notify_all()  # Notify waiting threads
+
+    def _initiate_roi(self) -> None:
+        # Full field of view if high res image cropping not specified
+        if self.roi_hires is None:
+            self.set_image_cropping((0, 0, 1, 1))
+        X, Y, W, H = self.roi_hires
+
+        # When input tensor cropping not specified, set according to model requirement
+        if self.roi_it is None:
+            if self.model.preserve_aspect_ratio:
+                model_aspect = self.model.input_tensor_size[0] / self.model.input_tensor_size[1]
+                display_aspect = (SENSOR_W * W) / (SENSOR_H * H)
+                if model_aspect > display_aspect:
+                    w, h = W, display_aspect / model_aspect * H
+                else:
+                    w, h = model_aspect / display_aspect * W, H
+                x, y = X + (W - w) / 2, Y + (H - h) / 2
+
+                self.set_input_tensor_cropping((x, y, w, h))
+
+                logger.warn(
+                    f"\033[93mInput tensor cropping settings have been adjusted to preserve aspect ratio of the "
+                    f"input tensor (model requirement): ROI({x:g}, {y:g}, {w:g}, {h:g})\033[0m"
+                )
+
+            else:
+                self.set_input_tensor_cropping((0, 0, 1, 1))
+
+    def _verify_roi(self) -> None:
+        # Auto adjust input tensor cropping to fit high res image when needed
+        x0, y0, w0, h0 = self.roi_it
+        x1, y1, w1, h1 = self.roi_hires
+
+        x2 = max(x0, x1)
+        y2 = max(y0, y1)
+        w2 = min(x0 + w0, x1 + w1) - x2
+        h2 = min(y0 + h0, y1 + h1) - y2
+
+        if not np.allclose((x0, y0, w0, h0), (x2, y2, w2, h2), rtol=1e-6):
+            if w2 == 0 or h2 == 0:
+                raise ValueError("""
+                    Input tensor cropping has no overlapping region with the high resolution image cropping.
+                    Please adjust the input tensor cropping settings to fit inside the high resolution image.
+                """)
+
+            logger.warn(
+                f"\033[93mInput tensor cropping settings have been adjusted to fit inside the high resolution image: "
+                f"ROI({x0:g}, {y0:g}, {w0:g}, {h0:g}) -> "
+                f"ROI({x2:g}, {y2:g}, {w2:g}, {h2:g})\033[0m"
+            )
+            self.set_input_tensor_cropping((x2, y2, w2, h2))
+
+        # Setup combined ROI
+        self.roi = ROI((x2 - x1) / w1, (y2 - y1) / h1, w2 / w1, h2 / h1)
+
+    def start(self):
+        if self.model is None:
+            self.deploy(InputTensorOnly())
+
+        # Setup & Verify ROI (input tensor & high res image)
+        self._initiate_roi()
+        self._verify_roi()
+
+        # Initiate libcamera config after the model deployement
+        self._initiate(
+            frame_rate=self.frame_rate,
+            enable_input_tensor=self.enable_input_tensor,
+            scaler_crop=self.scaler_crop,
+            image_size=self.image_size,
+        )
+
+        # Start processing thread
+        self._proc_started.clear()
+        self._proc_abort.clear()
+        self._proc_thread = threading.Thread(target=self._process_requests_func)
+        self._proc_thread.setDaemon(True)
+        self._proc_thread.start()
+        self._proc_started.wait()
+
+        # Start libcamera
+        self.camera.start(self.config.libcamera_controls)
+        self._running = True
+        self.rps.init()
+        self.dps.init()
+
+        # Warn when difference between DPS and RPS is large
+        self._monitor_abort.clear()
+        self._monitor_rate_thread = threading.Thread(target=self._monitor_dps_performance)
+        self._monitor_rate_thread.setDaemon(True)
+        self._monitor_rate_thread.start()
+
+        for request in self._make_requests():
+            self.camera.queue_request(request)
+
+        logger.info("Camera Started !")
+
+    def _make_requests(self):
+        num_requests = min([len(self.allocator.buffers(stream)) for stream in self.config.streams])
+        requests = []
+        for i in range(num_requests):
+            request = self.camera.create_request(self.camera_num)
+            if request is None:
+                raise RuntimeError("Could not create request")
+
+            for stream in self.config.streams:
+                # This now throws an error if it fails.
+                request.add_buffer(stream, self.allocator.buffers(stream)[i])
+            requests.append(request)
+        return requests
+
+    def _monitor_dps_performance(self):
+        # Wait for initial 10 seconds to let the system stabilize
+        for _ in range(20):
+            if self._monitor_abort.is_set():
+                return
+            time.sleep(0.5)
+
+        # Check rate difference
+        THRESHOLD = 5
+        if abs(self.rps.value - self.dps.value) > THRESHOLD:
+            logger.warning(
+                f"\033[93mPerformance warning: Large difference between libcamera request rate ({self.rps.value:.1f} RPS) "
+                f"and detection rate ({self.dps.value:.1f} DPS). "
+                f"Consider lowering the frame rate for better DPS performance. E.g. `AiCamera(frame_rate=<inbetween RPS and DPS value>)`\033[0m"
+            )
+
+    def stop(self):
+        atexit.unregister(self.stop)
+
+        if self.imx500 is not None:
+            self.imx500.stop_network_fw_progress_bar()
+
+        # Stop processing thread
+        if self._proc_thread and self._proc_thread.is_alive():
+            self._proc_abort.set()
+            self._proc_thread.join()
+
+        if self._monitor_rate_thread and self._monitor_rate_thread.is_alive():
+            self._monitor_abort.set()
+            self._monitor_rate_thread.join()
+
+        if self._running:
+            self._running = False
+            self.camera.stop()
+
+            # Clear unseen requests
+            CM.handle_request(self.camera_num)
+            self.camera.release()
+            with self._requestslock:
+                unseen_requests = self._requests
+                self._requests.clear()
+            for r in unseen_requests:
+                r.release()
+
+            CM.cleanup(self.camera_num)
+
+        del self.imx500
+        self.camera_num = None
+        self.camera_id = None
+        self.camera = None
+        self.config = None
+        self.imx500 = None
+        self.model = None
+
+        self.notifymeread.close()
+        os.close(self.notifyme_w)
+
+        # Clear any frames in the framebuffer before deleting the annotator
+        with self._frameslock:
+            self._frames.clear()
+
+        del self.allocator
+        self.allocator = Allocator()
+        logger.info("Camera closed successfully.")
+
+    def set_input_tensor_cropping(self, roi: Union[ROI, Tuple[float, float, float, float]]):
         """
         Set the input tensor cropping.
 
         Args:
-            roi_relative: The relative ROI (region of interest) in the form a (left, top, width, height) [%] crop for
+            roi: The relative ROI (region of interest) in the form a (left, top, width, height) [%] crop for
                 the input inference.
         """
-        if not isinstance(roi_relative, (Tuple, ROI)) or len(roi_relative) != 4:
-            raise ValueError("roi_relative must be a tuple of 4 floats or the named tuple ROI.")
-        if isinstance(roi_relative, Tuple):
-            roi_relative = ROI(*roi_relative)
-        self.roi_relative = roi_relative
+        if not isinstance(roi, (Tuple, ROI)) or len(roi) != 4:
+            raise ValueError("roi must be a tuple of 4 floats or the named tuple ROI.")
+        if isinstance(roi, Tuple):
+            roi = ROI(*roi)
+        self.roi_it = roi
 
         if not self.model:
             raise ValueError("No model deployed. Make sure to deploy a model before setting the input tensor cropping.")
-        if not all(0 <= value <= 1 for value in roi_relative):
+        if not all(0 <= value <= 1 for value in roi):
             raise ValueError("All relative ROI values (left, top, width, height) must be between 0 and 1.")
 
-        (left, top, width, height) = roi_relative
+        (left, top, width, height) = roi
         if left + width > 1 or top + height > 1:
             raise ValueError("ROI is out of the frame. Ensure that left + width <= 1 and top + height <= 1.")
 
         # Convert to absolute ROI based on full sensor resolution
         roi_abs = (int(left * SENSOR_W), int(top * SENSOR_H), int(width * SENSOR_W), int(height * SENSOR_H))
-        self.imx500_model.set_inference_roi_abs(roi_abs)
+        self.imx500.set_inference_roi_abs(roi_abs)
+        if self._running:
+            self._verify_roi()
 
+    def set_image_cropping(self, roi: Union[ROI, Tuple[float, float, float, float]]):
+        """
+        Set the cropping of the high resolution image. Can only be adjusted during initialisation.
+
+        Args:
+            roi: The relative ROI (region of interest) in the form a (left, top, width, height) [%] crop.
+        """
+        if self._running:
+            raise RuntimeError("Cannot adapt the camera high res image cropping while running.")
+
+        if not isinstance(roi, (Tuple, ROI)) or len(roi) != 4:
+            raise ValueError("roi must be a tuple of 4 floats or the named tuple ROI.")
+        if isinstance(roi, Tuple):
+            roi = ROI(*roi)
+        self.roi_hires = roi
+
+        (left, top, width, height) = roi
+        if not all(0 <= value <= 1 for value in roi):
+            raise ValueError("All ROI values (left, top, width, height) must be between 0 and 1.")
+        if left + width > 1 or top + height > 1:
+            raise ValueError("ROI is out of the frame. Ensure that left + width <= 1 and top + height <= 1.")
+
+        self.scaler_crop = (int(left * SENSOR_W), int(top * SENSOR_H), int(width * SENSOR_W), int(height * SENSOR_H))
+        # if self._running: # NOTE: unnecessary as you can't adjust while running and verify is called at start()
+        #     self._verify_roi()
+
+    # Model deployement
     def prepare_model_for_deployment(self, model: Model, overwrite: Optional[bool] = None) -> str | None:
         """
         Prepares a model for deployment by converting and/or packaging it based on the model type.
@@ -160,6 +543,8 @@ class AiCamera(Device):
 
         Returns:
             The path to the packaged model file ready for deployment. Returns None if the process fails.
+            overwrite: If None, prompts the user for input. If True, overwrites the output directory if it exists.
+                If False, uses already converted/packaged model from the output directory.
         """
 
         def package() -> str | None:
@@ -191,18 +576,18 @@ class AiCamera(Device):
                 check_dir_required(pack_dir, ["network.rpk"])
                 return os.path.join(pack_dir, "network.rpk")
             except AssertionError as e:
-                print(f"Caught an assertion error: {e}")
+                logger.error(f"Caught an assertion error: {e}")
                 return None
 
         # packaged model - done
         if model.model_type == MODEL_TYPE.RPK_PACKAGED:
             network_file = model.model_file
-            print(f"Packaged model: {network_file}")
+            logger.info(f"Packaged model: {network_file}")
 
         # converted model - package
         elif model.model_type == MODEL_TYPE.CONVERTED:
             network_file = package()
-            print(f"Converted model: {network_file}")
+            logger.info(f"Converted model: {network_file}")
 
         # framework model - convert and package
         elif model.model_type == MODEL_TYPE.KERAS or model.model_type == MODEL_TYPE.ONNX:
@@ -225,31 +610,11 @@ class AiCamera(Device):
         # It can fail both in converter and in packager
         if network_file is not None:
             if not os.path.exists(network_file):
-                print(f"Missing file: {network_file}")
+                logger.info(f"Missing file: {network_file}")
                 network_file = None
 
-        print(f"network_file: {network_file}")
+        logger.info(f"network_file: {network_file}")
         return network_file
-
-    def _configure_for_deployment(self, model: Model, network_file: Path) -> None:
-        # TODO: how to unit test? Several of these function raise exceptions
-        # TODO: preserve_aspect_ratio - this is not the correct place for something that is not device specific.
-
-        self.model = model
-        self.model._get_network_info(network_file)
-        self.imx500_model = self._get_imx500_model(network_file)
-        self.imx500_model.show_network_fw_progress_bar()
-
-        if model.preserve_aspect_ratio:
-            model_aspect = self.model.input_tensor_size[0] / self.model.input_tensor_size[1]
-            sensor_aspect = SENSOR_W / SENSOR_H
-            if model_aspect > sensor_aspect:
-                w, h = 1, sensor_aspect / model_aspect
-            else:
-                w, h = model_aspect / sensor_aspect, 1
-            self.set_input_tensor_cropping(((1 - w) / 2, (1 - h) / 2, w, h))
-        else:
-            self.set_input_tensor_cropping((0, 0, 1, 1))
 
     def deploy(self, model: Model, overwrite: Optional[bool] = None) -> None:
         """
@@ -257,8 +622,7 @@ class AiCamera(Device):
         following steps:
 
         - Prepare model for deployment
-        - Configure deployment
-        - Start the camera with the model
+        - Configure model deployment
 
         Args:
             model: The model to be deployed on the device.
@@ -273,41 +637,16 @@ class AiCamera(Device):
         if network_file is None:
             raise FileNotFoundError("Packaged network file error")
 
-        # configure deployment
-        self._configure_for_deployment(model, Path(network_file))
+        # configure model deployment
+        self.model = model
+        self.model._get_network_info(Path(network_file))
+        self.imx500 = IMX500(os.path.abspath(network_file), camera_id=self.camera_id)
+        self.imx500.show_network_fw_progress_bar()
 
-        # start camera
-        # Initiate Picamera2 (reads the symlink)
-        self.picam2 = self._initiate_picamera2()
-        self._picam2_start()
-
-    def _picam2_start(self):
-
-        config = self.picam2.create_preview_configuration(
-            main={"format": "RGB888"},
-            controls={"FrameRate": 30, "CnnEnableInputTensor": self.enable_input_tensor},
-            buffer_count=28,
-        )
-
-        def pre_callback(request):
-            from picamera2 import MappedArray
-
-            # Get VGA image from pre-callback (when enable_input_tensor=False)
-            with MappedArray(request, "main") as m:
-                self.image = m.array.copy()
-                self.height, self.width, self.num_channels = np.shape(self.image)
-
-        self.picam2.start(config, show_preview=False)
-        if not self.enable_input_tensor:
-            self.picam2.pre_callback = pre_callback
-
-    def _get_output_shapes(self, metadata: dict) -> List[List[int]]:
-        """
-        Get the model output shapes if no output return empty list
-        """
+    @staticmethod
+    def _get_output_tensor_shape(req):
         # TODO: can be removed when output tensor shape available in model
-
-        output_tensor_info = metadata.get("CnnOutputTensorInfo")
+        output_tensor_info = req.metadata.get("CnnOutputTensorInfo")
         if not output_tensor_info:
             return []
 
@@ -317,152 +656,45 @@ class AiCamera(Device):
             raise ValueError(f"tensor info length {len(output_tensor_info)} does not match expected size")
 
         parsed = _CnnOutputTensorInfoExported.from_buffer_copy(output_tensor_info)
-        # Getting the output tensor shapes only
         return [list(t.size)[: t.num_dimensions] for t in parsed.info[: parsed.num_tensors]]
 
-    def _get_input_tensor_image(self, metadata: dict) -> np.ndarray:
-        """
-        Get and convert input tensor to BGR image format.
-        """
-        input_tensor = metadata.get("CnnInputTensor")
-        if not input_tensor:
-            raise ValueError(
-                """
-                The provided model was converted with input tensor disabled,
-                Provide a model with input tensor enabled.
-            """
-            )
-
-        # NOTE: this info is also available in self.model_get_network_info()
-        width = self.imx500_model.config["input_tensor"]["width"]
-        height = self.imx500_model.config["input_tensor"]["height"]
-        r1 = np.array(input_tensor, dtype=np.uint8).astype(np.int32).reshape((3,) + (height, width))[(2, 1, 0), :, :]
-        norm_val = self.imx500_model.config["input_tensor"]["norm_val"]
-        norm_shift = self.imx500_model.config["input_tensor"]["norm_shift"]
-        div_val = self.imx500_model.config["input_tensor"]["div_val"]
-        div_shift = self.imx500_model.config["input_tensor"]["div_shift"]
-        for i in [0, 1, 2]:
-            r1[i] = ((((r1[i] << norm_shift[i]) - norm_val[i]) << div_shift) // div_val[i]) & 0xFF
-
-        return np.transpose(r1, (1, 2, 0)).astype(np.uint8).copy()
-
-    def _picam2_thread_function(self, queue, model):
-
-        if model is None:
-            self.deploy(InputTensorOnly())
-
-        while not self.stop_event.is_set():
-            try:
-                metadata = self.picam2.capture_metadata()
-                output_tensor = metadata.get("CnnOutputTensor")
-
-                detections = None
-                new_detection = False
-                input_tensor = None
-
-                # Process output tensor
-                if model is None:
-                    if self.enable_input_tensor:
-                        self.image = self._get_input_tensor_image(metadata)
-                        self.height, self.width, self.num_channels = np.shape(self.image)
-
-                elif output_tensor:
-                    # reshape buffer to tensor shapes
-                    # TODO: reavaluate when output tensor shape available in model
-                    np_output = np.fromiter(output_tensor, dtype=np.float32)
-                    output_shapes = self._get_output_shapes(metadata)
-
-                    offset = 0
-                    outputs = []
-                    for tensor_shape in output_shapes:
-                        size = np.prod(tensor_shape)
-                        outputs.append(np_output[offset : offset + size].reshape(tensor_shape, order="F"))
-                        offset += size
-
-                    # Post processing
-                    detections = model.post_process(outputs)
-
-                    new_detection = True
-                    self.last_detections = detections
-                    self._update_dps()
-
-                    # Get input tensor if enabled
-                    if self.enable_input_tensor:
-                        # 1. Setting frame.image to input tensor image
-                        self.image = self._get_input_tensor_image(metadata)
-                        self.height, self.width, self.num_channels = np.shape(self.image)
-
-                        # 2. getting the real ISP output (for framework input)
-                        # TODO
-                        input_tensor = np.empty((0,))
-                        self.last_input_tensor = input_tensor
-
-                elif self.last_detections is None:
-                    # Missing output tensor in frame (no detection yet)
-                    continue
-                else:
-                    # Missing output tensor in frame
-                    detections = self.last_detections
-                    input_tensor = self.last_input_tensor
-
-                # Append frame to frame queue
-                queue.put(
-                    Frame(
-                        timestamp=datetime.now().isoformat(),
-                        image=self.image,
-                        image_type=IMAGE_TYPE.VGA if not self.enable_input_tensor else IMAGE_TYPE.INPUT_TENSOR,
-                        width=self.width,
-                        height=self.height,
-                        channels=self.num_channels,
-                        detections=detections,
-                        new_detection=new_detection,
-                        fps=self.fps,
-                        dps=self.dps,
-                        color_format=COLOR_FORMAT.BGR,  # Both VGA image as input_tensor_image always in BGR format
-                        input_tensor=input_tensor,
-                        roi=self.roi_relative,
-                    )
-                )
-
-            except KeyError:
-                pass
-
-        self.picam2.close()
-
-    def _update_dps(self):
-        current_time = time.perf_counter()
-        self.detection_times.append(current_time - self.last_detection_time)
-        self.last_detection_time = current_time
-        if len(self.detection_times) > 1:
-            self.dps = len(self.detection_times) / sum(self.detection_times)
-
-    # <------------ Stream ------------>
     def __enter__(self):
         """
         Start the AiCamera device stream.
         """
-        self.stop_event.clear()
-
-        self.picam2_thread = threading.Thread(target=self._picam2_thread_function, args=(self.frame_queue, self.model))
-        self.picam2_thread.start()
-
-        self.start_time = time.perf_counter()
-        super().__enter__()
+        self.start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """
         Stop the AiCamera device stream.
         """
-        self.stop_event.set()
-        self.picam2_thread.join()
+        self.stop()
 
     def __iter__(self):
         """
         Iterate over the frames in the device stream.
         """
-        self.last_time = time.perf_counter()
+        self.fps.init()
         return self
+
+    def get_frame(self) -> Frame:
+        """
+        Gets the next processed frame in the device stream.
+
+        Returns:
+            The next frame in the device stream.
+        """
+        with self._frameslock:
+            while not self._frames:
+                self._frame_ready.wait()  # Wait for available frame
+            frame = self._frames.pop(-1)
+            if self._frames:
+                logger.debug(f"Main thread is dropping {len(self._frames)} frames.")
+                self._frames.clear()
+
+        self.fps.update()
+        return frame
 
     def __next__(self) -> Frame:
         """
@@ -472,39 +704,4 @@ class AiCamera(Device):
             The next frame in the device stream.
         """
         self.check_timeout()
-        self.update_fps()
-
-        try:
-            return self.frame_queue.get(timeout=120)
-        except queue.Empty:
-            raise StopIteration
-
-    @staticmethod
-    def _initiate_picamera2():
-        try:
-            from picamera2 import Picamera2
-
-            return Picamera2()
-        except ImportError:
-            raise ImportError(
-                """
-                picamera2 is not installed. Please install picamera2 to use the AiCamera device.\n\n
-                For a raspberry pi with picamera2 installed. Enable in virtual env using:
-                `python -m venv .venv --system-site-packages`\n
-                """
-            )
-
-    @staticmethod
-    def _get_imx500_model(model_path):
-        try:
-            from picamera2.devices.imx500 import IMX500
-
-            return IMX500(os.path.abspath(model_path))
-        except ImportError:
-            raise ImportError(
-                """
-                picamera2 is not installed. Please install picamera2 to use the AiCamera device.\n\n
-                For a raspberry pi with picamera2 installed. Enable in virtual env using:
-                `python -m venv .venv --system-site-packages`\n
-                """
-            )
+        return self.get_frame()

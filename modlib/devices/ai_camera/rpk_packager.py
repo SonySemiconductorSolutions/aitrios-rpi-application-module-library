@@ -17,6 +17,7 @@
 import json
 import logging
 import os
+import sys
 import platform
 from pathlib import Path
 from typing import Optional
@@ -53,6 +54,12 @@ class RPKPackager:
     def __init__(self):
         """
         Initialisation of the RPKPackager.
+        """
+        self.verified = False
+
+    def _verify_rpk_packager(self):
+        """
+        Verifies initialisation of the RPKPackager.
 
         Raises:
             EnvironmentError: When the packager is initialised on a host other then a Raspberry Pi.
@@ -72,6 +79,8 @@ class RPKPackager:
             """
             )
 
+        self.verified = True
+
     def run(
         self,
         input_path: Path,
@@ -88,6 +97,10 @@ class RPKPackager:
             color_format: Color format to package for. Defaults to `COLOR_FORMAT.RGB`.
             overwrite: If None, prompts the user for input. If True, overwrites the output directory if it exists.
                 If False, aborts if the directory exists.
+
+        Raises:
+            EnvironmentError: When the packager is initialised on a host other then a Raspberry Pi.
+            FileNotFoundError: When the imx500 packaging tools are not installed.
         """
         # NOTE: only supports 1 network deployment for now (ordinal: 0)
 
@@ -104,19 +117,26 @@ class RPKPackager:
             if overwrite is None:
                 user_input = input(
                     f"""
-                The given output directory '{output_dir}' already contains a `network.rpk` file.
-                Please select a different directory or confirm to continue (overwrite the existing network).
-                Type 'yes' to continue or 'no' to abort (y/n):
-                """
+                    The given output directory '{output_dir}' already contains a `network.rpk` file.
+                    1. Type 'yes/y' to overwrite the existing network.rpk file
+                    2. Press <Enter> to use the already existing network.rpk file
+                    3. Press 'no/n' to abort
+                    Choice (y/<Enter>/n): """
                 )
             else:
                 if not isinstance(overwrite, bool):
                     raise ValueError("Invalid value for overwrite. It must be True or False.")
-                user_input = "y" if overwrite else "n"
+                user_input = "y" if overwrite else "<Enter>"
+
+            if user_input.lower() in ("no", "n"):
+                sys.exit()
 
             if user_input.lower() not in ("yes", "y"):
                 logger.info("Model packaging aborted.")
                 return
+
+        if not self.verified:
+            self._verify_rpk_packager()
 
         input_format = self.set_post_converter_config(output_dir, color_format)
 
