@@ -22,6 +22,12 @@ from .post_processors import (
     pp_od_bcsn,
     pp_od_bscn,
     pp_od_efficientdet_lite0,
+    pp_od_yolov8n,
+    pp_od_yolo_ultralytics,
     pp_posenet,
+    pp_personlab,
     pp_segment,
+    pp_yolov8n_pose,
+    pp_yolo_pose_ultralytics,
+    pp_yolov8n_segment,
 )

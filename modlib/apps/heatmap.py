@@ -128,7 +128,6 @@ class Heatmap(object):
         heat_matrix = np.zeros(self.heatmap_size)
 
         for bbox, _, _, _ in self.all_detections:
-
             x1, y1, x2, y2 = (
                 bbox[0] * self.frame_size[1],
                 bbox[1] * self.frame_size[0],

@@ -2,6 +2,7 @@
 title: Custom models
 sidebar_position: 2
 ---
+import ApiLink from '@site/src/components/ApiLink';
 
 
 # Custom models
@@ -20,11 +21,18 @@ This means you can easily adapt your custom models, work with various devices, w
 
 ## Example
 
-Here's a brief example of how you can use custom models with the Application Module Library:
+Here's a full example of how you can use custom models with the Application Module Library:
 
 ```python
+import numpy as np
+from typing import List
+
+from modlib.apps import Annotator
+from modlib.devices import AiCamera
 from modlib.models import COLOR_FORMAT, MODEL_TYPE, Model
 from modlib.models.post_processors import pp_od_bscn
+from modlib.models.results import Detections
+
 
 class SSDMobileNetV2FPNLite320x320(Model):
     def __init__(self):
@@ -32,25 +40,39 @@ class SSDMobileNetV2FPNLite320x320(Model):
             model_file="./path/to/imx500_network_ssd_mobilenetv2_fpnlite_320x320_pp.rpk",
             model_type=MODEL_TYPE.RPK_PACKAGED,
             color_format=COLOR_FORMAT.RGB,
-            preserve_aspect_ratio=True,
+            preserve_aspect_ratio=False,
         )
 
         # Optionally define self.labels
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Detections:
         return pp_od_bscn(output_tensors)
+    
+
+device = AiCamera()
+model = SSDMobileNetV2FPNLite320x320()
+device.deploy(model)
+
+annotator = Annotator()
+
+with device as stream:
+    for frame in stream:
+        # NOTE: frame.detections contains the result returned by model.post_process()
+        detections = frame.detections[frame.detections.confidence > 0.55]
+        annotator.annotate_boxes(frame, detections, alpha=0.3, corner_radius=10)
+        frame.display()
 ```
 
 
 ## Specification
 
 To take advantage of modlib's model abstraction layer one needs to follow a certain set of rules.
-The first one is to initialize the inherited base [Model](../api-reference/models/model) class.
+The first one is to initialize the inherited base <ApiLink to="/api-reference/models/model">Model</ApiLink> class.
 
 **Arguments:**
 - model_file (Path): The path to the model file.
-- model_type ([MODEL_TYPE](../api-reference/models/model#model_type)): The type of the model.
-- color_format ([COLOR_FORMAT](../api-reference/models/model#color_format), optional): The color format of the model (RGB or BGR). Defaults to `COLOR_FORMAT.RGB`.
+- model_type (<ApiLink to="/api-reference/models/model#model_type">MODEL_TYPE</ApiLink>): The type of the model.
+- color_format (<ApiLink to="/api-reference/models/model#color_format">COLOR_FORMAT</ApiLink>, optional): The color format of the model (RGB or BGR). Defaults to `COLOR_FORMAT.RGB`.
 - preserve_aspect_ratio (bool, optional): Setting the sensor whether or not to preserve aspect ratio of the input tensor. Defaults to `True`.
 
 :::info
@@ -66,15 +88,25 @@ Next to RPK_PACKAGED models, one can also provide a CONVERTED, or quantized KERA
 
 ## Post Processing
 
-Implement the necessary post-processing method, which has a strictly defined signature and expected output. 
+Implement the necessary post-processing method, which has a **strictly defined signature and expected output**. 
 - **Argument:** output_tensors (`List[np.ndarray]`) A list of output tensors returned by your custom model
-- **Returns:** One of the [Result](../api-reference/models/results#result) types (`Classifications`, `Detections`, `Poses`, `Segments` or `Anomaly`)
+- **Returns:** One of the <ApiLink to="/api-reference/models/results#result">Result</ApiLink> types (`Classifications`, `Detections`, `Poses`, `Segments` or `Anomaly`)
 
 ```python
 def post_process(self, output_tensors: List[np.ndarray]) -> Union[Classifications, Detections, Poses, Segments, Anomaly]:
 ```
 
-For convenience, the most common post-processing functions are included in the [post_processing library](../api-reference/models/post_processors) of the Application Module Library.
+For convenience, the most common post-processing functions are included in the <ApiLink to="/api-reference/models/post_processors">post_processing library</ApiLink> of the Application Module Library. As a rule: **The output of the post-processor function will be available in the `frame.detections` variable during runtime.**
+
+```python
+device = AiCamera()
+model = CustomModel()  # Defines the model.post_process() function
+device.deploy(model)
+
+with device as stream:
+    for frame in stream:
+        print(frame.detections) # Contains the result of the model.post_process() function
+```
 
 ## Pre Processing (Optional)
 

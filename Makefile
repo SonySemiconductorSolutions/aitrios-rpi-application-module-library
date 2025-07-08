@@ -16,51 +16,36 @@
 
 .ONESHELL:
 SHELL := /bin/bash
-PYTHON3 := python3
-ifeq ($(OS),Windows_NT)
-    pyact := . .venv/Scripts/activate
-else
-    pyact := . .venv/bin/activate
+
+ifeq (,$(shell which uv || echo $(OS) | grep -i Windows_NT))
+ 	$(error "uv notfound. To install uv, run the following commands: curl -LsSf https://astral.sh/uv/install.sh | sh")
 endif
 
-.PHONY: docs
+setup:
+	uv sync
 
-
-setup: .venv
-
-.venv:
-	test -d .venv || $(PYTHON3) -m venv .venv --system-site-packages
-	$(pyact); \
-	python -m pip install --upgrade pip; \
-	pip install --ignore-installed poetry; \
-	export PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring; \
-	poetry install
+# NOTE: when numpy include over the meson build you have to disable build isolation
+# setup:
+# 	uv venv
+# 	uv pip install "meson-python~=0.17.1" "numpy>=2.0.0rc1,<=2.2.0"
+# 	UV_NO_BUILD_ISOLATION=true uv pip install -e .
 
 clean: clean-pyc
-	rm -rf .venv
-	rm -f poetry.lock
-	rm -rf build
-	rm -f gui-tool.spec
+	rm -rf .venv .ruff_cache
+	rm -rf modlib.egg-info dist pytest.xml
 
 clean-pyc:
 	find . -name "__pycache__" -exec rm -fr {} +
 	find . -name ".pytest_cache" -exec rm -fr {} +
 	find . -name ".coverage" -exec rm -fr {} +
 
-test: .venv
-	$(pyact); \
-	python -m pytest --junitxml=pytest.xml -m 'not slow and not aicam'
+test:
+	uv run pytest --junitxml=pytest.xml -m 'not slow and not aicam'
 	make clean-pyc > /dev/null
 
-lint: .venv
-	$(pyact); \
-	isort .; \
-	black .; \
-	flake8
+lint:
+	uv run ruff format ./modlib 
+	uv run ruff check --fix ./modlib 
 
-# BUILD
-MODLIB_VERSION ?= 1.0.0
-build: .venv
-	$(pyact); \
-	poetry version $(MODLIB_VERSION); \
-	poetry build
+build:
+	uv build

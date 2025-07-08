@@ -2,13 +2,16 @@
 title: Counter
 sidebar_position: 2
 ---
+import ApiLink from '@site/src/components/ApiLink';
 
 # Counter
 
-The [ObjectCounter](../api-reference/apps/object_counter#objectcounter) component is designed to work together with a tracker to keep a persistent count of detected objects over time. By using the tracklet information, it is able to distinguish between different bounding boxes across frames. When a new tracklet is detected, it increments the count for that tracklet's associated class.  
+The <ApiLink to="/api-reference/apps/object_counter#objectcounter">ObjectCounter</ApiLink> component is designed to work together with a tracker to keep a persistent count of detected objects over time. By using the tracklet information, it is able to distinguish between different bounding boxes across frames. When a new tracklet is detected, it increments the count for that tracklet's associated class.  
 
 - The `counter.update(detections)` method processes the current frame's detections and updates the count for each tracked object of any class_id.
 - The `counter.get(class_id)` method returns the total count of objects for a specific `class_id` detected across frames.
+
+![Counter](gifs/counter.gif)
 
 An example of how the Object Counter can be used in the Application Module Library below:
 

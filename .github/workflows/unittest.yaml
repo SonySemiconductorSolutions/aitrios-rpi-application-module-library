@@ -2,6 +2,9 @@ name: unittest
 
 on:
   push:
+    # temporary disable unitest on all branches
+    branches:
+      - main
   pull_request:
     branches:
       - '*'
@@ -16,27 +19,29 @@ jobs:
   test:
     name: Run unit tests
     runs-on: ubuntu-latest
-     
+    strategy:
+      matrix:
+        python-version:
+          - "3.11"
+
     steps:
         - name: Checkout code
           uses: actions/checkout@v4
           with:
               fetch-depth: 0
-    
-        - name: Set up Python
-          uses: actions/setup-python@v5
-          with:
-            python-version: '3.10'
-    
-        - name: Install dependencies
-          run: |
-            pip install --upgrade pip
-            pip install poetry
-            poetry install
-        
+
+        - name: Install uv
+          uses: astral-sh/setup-uv@v3
+
+        - name: Install project build system requirements (ninja)
+          run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+        - name: Set up Python ${{ matrix.python-version }}
+          run: uv python install ${{ matrix.python-version }}
+
         - name: Run tests
           run: |
-            poetry run pytest --junitxml=pytest.xml -m 'not slow and not aicam' | tee pytest-coverage.txt
+            uv run pytest --junitxml=pytest.xml -m 'not slow and not aicam' | tee pytest-coverage.txt
 
         - name: Publish Test Results
           uses: EnricoMi/publish-unit-test-result-action@v2

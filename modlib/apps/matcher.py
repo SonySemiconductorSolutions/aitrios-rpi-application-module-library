@@ -14,10 +14,9 @@
 # limitations under the License.
 #
 
-import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Iterator, List, Tuple, Union
+from typing import Iterator, List, Tuple
 
 import numpy as np
 
@@ -138,7 +137,15 @@ class DetectedObject:
         elif self.avg_overlap < self.s.MIN_OVERLAP_THRESHOLD - self.s.HYSTERESIS / 2:
             self.overlapped = False
 
-        return (self.bbox, self.avg_overlap, self.class_id, self.tracker_id, self.overlapped, self.uptime)
+        return (
+            self.bbox,
+            self.avg_overlap,
+            self.class_id,
+            self.tracker_id,
+            self.overlapped,
+            self.uptime,
+            self.missing_tracker_counter,
+        )
 
     def __eq__(self, other):
         if isinstance(other, DetectedObject):

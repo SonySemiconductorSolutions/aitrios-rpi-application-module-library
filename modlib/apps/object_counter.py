@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-import cv2
 import numpy as np
 
 from modlib.models import Detections, Poses

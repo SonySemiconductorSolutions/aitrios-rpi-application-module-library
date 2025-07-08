@@ -34,6 +34,6 @@ with device as stream:
 
         detections = p[matcher.match(p, c)]
 
-        labels = [f"# PERSON & CUP" for _, s, c, _ in detections]
+        labels = ["# PERSON & CUP" for _, s, c, _ in detections]
         annotator.annotate_boxes(frame, detections, labels=labels)
         frame.display()

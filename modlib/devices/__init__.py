@@ -15,5 +15,6 @@
 #
 
 from .ai_camera import AiCamera
-from .interpreters import KerasInterpreter
+from .triton import Triton
+from .interpreters import KerasInterpreter, ONNXInterpreter
 from .sources import Images, Video

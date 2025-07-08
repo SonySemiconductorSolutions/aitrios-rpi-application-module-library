@@ -14,13 +14,11 @@
 # limitations under the License.
 #
 
-import time
-from datetime import datetime
-from typing import Optional, Union
+from typing import Optional
 
 import numpy as np
 
-from modlib.devices.device import Device
+from modlib.devices.device import Device, Rate
 from modlib.devices.frame import IMAGE_TYPE, Frame
 from modlib.devices.sources import Source
 from modlib.models import MODEL_TYPE, Model
@@ -65,6 +63,7 @@ class KerasInterpreter(Device):
 
         self.source = source
         self.model = None
+        self.fps = Rate()
 
         super().__init__(
             headless=headless,
@@ -102,7 +101,6 @@ class KerasInterpreter(Device):
         """
         Start the KerasInterpreter device stream.
         """
-        super().__enter__()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -115,7 +113,7 @@ class KerasInterpreter(Device):
         """
         Iterate over the frames in the device stream.
         """
-        self.last_time = time.perf_counter()
+        self.fps.init()
         return self
 
     def __next__(self):
@@ -125,8 +123,8 @@ class KerasInterpreter(Device):
         Returns:
             The next frame in the device stream.
         """
-        self.update_fps()
         self.check_timeout()
+        self.fps.update()
 
         input_frame = self.source.get_frame()
         if input_frame is None:
@@ -155,7 +153,7 @@ class KerasInterpreter(Device):
             detections = None
 
         return Frame(
-            timestamp=datetime.now().isoformat(),
+            timestamp=self.source.timestamp.isoformat(),
             image=image,
             image_type=image_type,
             width=width,
@@ -163,8 +161,8 @@ class KerasInterpreter(Device):
             channels=channels,
             detections=detections,
             new_detection=True if self.model else False,
-            fps=self.fps,
-            dps=self.fps,
+            fps=self.fps.value,
+            dps=self.fps.value,
             color_format=self.source.color_format,
             input_tensor=None,
         )

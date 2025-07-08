@@ -2,14 +2,22 @@
 title: Matcher
 sidebar_position: 3
 ---
+import ApiLink from '@site/src/components/ApiLink';
 
 # Matcher
 
-The [Matcher](../api-reference/apps/matcher#matcher) component is designed to identify relationships between two sets of detections based on their spatial overlap. It takes two sets of detections and compares their bounding boxes to determine overlaping area. The `matcher.match(set1, set2)` method returns a boolean mask indicating which detections in the first set overlap with any detection in the second set.
+The <ApiLink to="/api-reference/apps/matcher#matcher">Matcher</ApiLink> component is designed to identify relationships between two sets of detections based on their spatial overlap. It takes two sets of detections and compares their bounding boxes to determine overlaping area. The `matcher.match(set1, set2)` method returns a boolean mask indicating which detections in the first set overlap with any detection in the second set.
 
-The Matcher can be used to identify context-specific relationships, such as:
-- Determining if a person is holding an object (e.g., a cup).
-- Verifying if a person is wearing a specific item (e.g., a helmet or safety vest).
+<div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start' }}>
+  <div style={{ flex: '1' }}>
+    The Matcher can be used to identify context-specific relationships, such as:
+    - Determining if a person is holding an object (e.g., a cup).
+    - Verifying if a person is wearing a specific item (e.g., a helmet or safety vest).
+  </div>
+  <div style={{ flex: '1' }}>
+    ![Matcher](gifs/matcher.gif)
+  </div>
+</div>
 
 Below an example of how one can use the Matcher in the Application Module Library.
 

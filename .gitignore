@@ -10,16 +10,21 @@
 __pycache__/
 .pytest_cache
 .python-version
+.ruff_cache
 pytest.xml
 coverage.xml
 pytest-coverage.txt
-poetry.lock
 
 *.mp4
 *.keras
 *.rpk
+*.egg-info
 
 dist
+build
 tests/assets
 examples/assets
 temp
+
+# Triton artifact
+persist.json

@@ -28,34 +28,45 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union
 
 import cv2
+import math
 import numpy as np
 
 from modlib.apps.area import Area
 from modlib.devices.frame import IMAGE_TYPE, Frame
-from modlib.models import Anomaly, Detections, Poses, Segments
+from modlib.models import Detections, Poses, Segments
 
 DEFAULT_COLOR_PALETTE = [
-    "#a351fb",
-    "#e6194b",
-    "#3cb44b",
-    "#ffe119",
-    "#0082c8",
-    "#f58231",
-    "#911eb4",
-    "#46f0f0",
-    "#f032e6",
-    "#d2f53c",
-    "#fabebe",
-    "#008080",
-    "#e6beff",
-    "#aa6e28",
-    "#fffac8",
-    "#800000",
-    "#aaffc3",
-    "#ff6347",
-    "#4682b4",
-    "#32cd32",
-    "#ff69b4",
+    "#FFCC14",
+    "#FDBC4F",
+    "#FAAC89",
+    "#F89CC4",
+    "#DB748F",
+    "#BD4C59",
+    "#A02424",
+    "#BD3424",
+    "#DB4525",
+    "#F85525",
+    "#F9713B",
+    "#F98D52",
+    "#FAA968",
+    "#F9BA7F",
+    "#F7CB95",
+    "#F6DCAC",
+    "#B9C6A5",
+    "#7CB09F",
+    "#3F9998",
+    "#028391",
+    "#02627B",
+    "#014164",
+    "#01204E",
+    "#031C3D",
+    "#06182D",
+    "#08141C",
+    "#20291F",
+    "#383F21",
+    "#505424",
+    "#8A7C1F",
+    "#C5A419",
 ]
 
 
@@ -155,6 +166,17 @@ class Color:
     def yellow(cls) -> Color:
         return Color.from_hex(color_hex="#ffff00")
 
+    def contrast_color(self) -> Color:
+        """
+        Returns a light or dark color for text based on the brightness of the color.
+
+        Returns:
+            A Color instance representing either black or white for better contrast.
+        """
+        # Calculate luminance
+        luminance = 0.299 * self.r + 0.587 * self.g + 0.114 * self.b
+        return Color.white() if luminance < 128 else Color.black()
+
 
 @dataclass
 class ColorPalette:
@@ -234,7 +256,6 @@ class Annotator:
 
     color: Union[Color, ColorPalette]  #: The color to draw the bounding box, can be a single color or a color palette.
     thickness: int  #: The thickness of the bounding box lines, default is 2.
-    text_color: Color  #: The color of the text on the bounding box, default is black.
     text_scale: float  #: The scale of the text on the bounding box, default is 0.5.
     text_thickness: int  #: The thickness of the text on the bounding box, default is 1.
     text_padding: int  #: The padding around the text on the bounding box, default is 10.
@@ -243,20 +264,26 @@ class Annotator:
         self,
         color: Union[Color, ColorPalette] = ColorPalette.default(),
         thickness: int = 2,
-        text_color: Color = Color.black(),
         text_scale: float = 0.5,
         text_thickness: int = 1,
         text_padding: int = 10,
     ):
         self.color: Union[Color, ColorPalette] = color
         self.thickness: int = thickness
-        self.text_color: Color = text_color
         self.text_scale: float = text_scale
         self.text_thickness: int = text_thickness
         self.text_padding: int = text_padding
 
     def annotate_boxes(
-        self, frame: Frame, detections: Detections, labels: Optional[List[str]] = None, skip_label: bool = False
+        self,
+        frame: Frame,
+        detections: Detections,
+        labels: Optional[List[str]] = None,
+        skip_label: bool = False,
+        color: Union[Color, ColorPalette] = None,
+        alpha: float = None,
+        corner_radius: int = 0,
+        corner_length: int = 0,
     ) -> np.ndarray:
         """
         Draws bounding boxes on the frame using the detections provided.
@@ -267,12 +294,20 @@ class Annotator:
             labels: An optional list of labels corresponding to each detection.
                 If `labels` are not provided, corresponding `class_id` will be used as label.
             skip_label: Is set to `True`, skips bounding box label annotation.
+            color: RGB value for bounding box edges and filling.
+            alpha: The float value between 0.0 and 1.0 to set the transparency of the filling color.
+            corner_radius: The value to set the radius of the corner of the bounding boxes.
+            corner_length: The value to set the length of the corner of the bounding boxes. Only used if `corner_radius` is 0.
 
         Returns:
             The annotated frame.image with bounding boxes.
         """
-        if not isinstance(detections, Detections):
-            raise ValueError("Detections must be of type Detections.")
+        if (
+            not isinstance(detections, Detections)
+            and not isinstance(detections, Poses)
+            and not isinstance(detections, Segments)
+        ):
+            raise ValueError("Input `detections` should be of type Detections, Poses, or Segments that contain bboxes")
 
         # NOTE: Compensating for any introduced modified region of interest (ROI)
         # to ensure that detections are displayed correctly on top of the current `frame.image`.
@@ -291,27 +326,132 @@ class Annotator:
                 int(y2 * h),
             )
 
-            class_id = detections.class_id[i] if detections.class_id is not None else None
-            idx = class_id if class_id is not None else i
-            color = self.color.by_idx(idx) if isinstance(self.color, ColorPalette) else self.color
-            cv2.rectangle(
-                img=frame.image,
-                pt1=(x1, y1),
-                pt2=(x2, y2),
-                color=color.as_bgr(),
-                thickness=self.thickness,
+            if isinstance(detections, Detections):
+                class_id = detections.class_id[i] if detections.class_id is not None else None
+                idx = class_id if class_id is not None else i
+            else:  # Poses
+                class_id, idx = "Person", 0
+
+            if color is None:
+                c = self.color.by_idx(idx) if isinstance(self.color, ColorPalette) else self.color
+            else:
+                c = color
+
+            # Draw rectange with possible rounded edges and infil
+            self.rounded_rectangle(
+                frame.image,
+                x1,
+                y1,
+                x2,
+                y2,
+                c.as_bgr(),
+                self.thickness,
+                alpha,
+                corner_radius,
+                corner_length,
             )
+
             if skip_label:
                 continue
 
             label = f"{class_id}" if (labels is None or len(detections) != len(labels)) else labels[i]
-
-            self.set_label(image=frame.image, x=x1, y=y1, color=color.as_bgr(), label=label)
+            self.set_label(
+                image=frame.image,
+                x=x1 - math.ceil(self.thickness / 2),
+                y=y1 - math.ceil(self.thickness / 2),
+                color=c.as_bgr(),
+                label=label,
+            )
 
         return frame.image
 
+    def rounded_rectangle(
+        self,
+        image: np.ndarray,
+        x1: int,
+        y1: int,
+        x2: int,
+        y2: int,
+        color: Tuple[int, int, int],
+        thickness: int,
+        alpha: float = None,
+        corner_radius: int = 0,
+        corner_length: int = 0,
+    ) -> None:
+        """
+        Args:
+            image : The input image as a NumPy array.
+            x1 : The x-coordinate of the top-left corner of the crop.
+            y1 : The y-coordinate of the top-left corner of the crop.
+            x2 : The x-coordinate of the bottom-right corner of the crop.
+            y2 : The y-coordinate of the bottom-right corner of the crop.
+            color: BGR value for bounding box edges and filling.
+            thickness: The thickness of the edges of the rectangle
+            alpha: The float value between 0.0 and 1.0 to set the transparency of the filling color.
+            corner_radius: The value to set the radius of the corner of the bounding boxes.
+            corner_length: The value to set the length of the corner of the bounding boxes. Only used if `corner_radius` is 0.
+
+        Returns:
+            None
+        """
+
+        inner_pts = [
+            (x1 + corner_radius, y1 + corner_radius),
+            (x2 - corner_radius, y1 + corner_radius),
+            (x2 - corner_radius, y2 - corner_radius),
+            (x1 + corner_radius, y2 - corner_radius),
+        ]
+
+        if corner_length and not corner_radius:
+            outer_pts = [
+                # Top-left corner
+                [(x1, y1), (x1 + corner_length, y1)],
+                [(x1, y1), (x1, y1 + corner_length)],
+                # Top-right corner
+                [(x2, y1), (x2, y1 + corner_length)],
+                [(x2, y1), (x2 - corner_length, y1)],
+                # Bottom-right corner
+                [(x2, y2), (x2 - corner_length, y2)],
+                [(x2, y2), (x2, y2 - corner_length)],
+                # Bottom-left corner
+                [(x1, y2), (x1, y2 - corner_length)],
+                [(x1, y2), (x1 + corner_length, y2)],
+            ]
+        else:
+            outer_pts = [
+                [(x1 + corner_radius, y1), (x2 - corner_radius, y1)],
+                [(x2, y1 + corner_radius), (x2, y2 - corner_radius)],
+                [(x2 - corner_radius, y2), (x1 + corner_radius, y2)],
+                [(x1, y2 - corner_radius), (x1, y1 + corner_radius)],
+            ]
+
+        if alpha:
+            # Create the cross corner points
+            overlay = image.copy()
+            corner_pts = np.array(
+                [pt for i in range(4) for pt in (inner_pts[i], *outer_pts[i * len(outer_pts) // 4])], np.int32
+            )
+            cv2.fillPoly(overlay, [corner_pts], color=color)
+
+            if corner_radius:
+                for i, angle in enumerate([180, 270, 0, 90]):
+                    cv2.ellipse(
+                        overlay, inner_pts[i], (corner_radius, corner_radius), angle, 0, 90, color, thickness=cv2.FILLED
+                    )
+
+            cv2.addWeighted(overlay, alpha, image, 1 - alpha, 0, image)
+
+        # Draw the straight border lines
+        for pt1, pt2 in outer_pts:
+            cv2.line(image, pt1, pt2, color, thickness)
+
+        # Draw the rounded corners
+        if corner_radius:
+            for i, angle in enumerate([180, 270, 0, 90]):
+                cv2.ellipse(image, inner_pts[i], (corner_radius, corner_radius), angle, 0, 90, color, thickness)
+
     def annotate_area(
-        self, frame: Frame, area: Area, color: Tuple[int, int, int], label: Optional[str] = None
+        self, frame: Frame, area: Area, color: Tuple[int, int, int], label: Optional[str] = None, alpha: float = None
     ) -> np.ndarray:
         """
         Draws a shape on the frame using the area containing points.
@@ -320,6 +460,7 @@ class Annotator:
             frame: The frame on which the area will be drawn. Must contain `frame.image`
             area: The area of a shape to draw on frame
             color: Tuple containing BGR value of the area
+            alpha: The float value between 0.0 and 1.0 to set the transparency of the filling color.
 
         Returns:
             The image with the area annotated.
@@ -330,8 +471,13 @@ class Annotator:
         resized_points[:, 1] = (area.points[:, 1] * h).astype(np.int32)
         resized_points = resized_points.reshape((-1, 1, 2))
 
+        if alpha:
+            overlay = frame.image.copy()
+            cv2.fillPoly(frame.image, [resized_points], color=color)
+            cv2.addWeighted(overlay, 1 - alpha, frame.image, alpha, 0, frame.image)
+
         # Draw the area on the image
-        cv2.polylines(frame.image, [resized_points], isClosed=True, color=color, thickness=2)
+        cv2.polylines(frame.image, [resized_points], isClosed=True, color=color, thickness=self.thickness)
 
         # Label
         if label:
@@ -349,7 +495,7 @@ class Annotator:
             image: The image to annotate from Frame.
             x: x coordinate for label position
             y: y coordinate for label position
-            color: RGB value of background color
+            color: BGR value of background color
             label: text to be placed on frame
         """
 
@@ -363,13 +509,13 @@ class Annotator:
         )[0]
 
         text_x = x + self.text_padding
-        text_y = y - self.text_padding
+        text_y = y + self.text_padding + text_height
 
         text_background_x1 = x
-        text_background_y1 = y - 2 * self.text_padding - text_height
+        text_background_y1 = y
 
         text_background_x2 = x + 2 * self.text_padding + text_width
-        text_background_y2 = y
+        text_background_y2 = y + 2 * self.text_padding + text_height
 
         # Draw background rectangle
         cv2.rectangle(
@@ -387,7 +533,7 @@ class Annotator:
             org=(text_x, text_y),
             fontFace=font,
             fontScale=self.text_scale,
-            color=self.text_color.as_rgb(),
+            color=Color(*color[::-1]).contrast_color().as_bgr(),
             thickness=self.text_thickness,
             lineType=cv2.LINE_AA,
         )
@@ -427,10 +573,111 @@ class Annotator:
 
         return frame.image
 
-    def annotate_poses(
+    def annotate_oriented_boxes(
+        self,
+        frame: Frame,
+        segments: Segments,
+        labels: Optional[List[str]] = None,
+        skip_label: bool = False,
+        color: Union[Color, ColorPalette] = None,
+    ) -> np.ndarray:
+        """
+        Draws orientated bounding boxes on the frame using the detections provided.
+
+        Args:
+            frame: The frame to annotate.
+            segments: The boxes calculated from instance segments for which the bounding boxes will be drawn
+            labels: An optional list of labels corresponding to each detection.
+                If `labels` are not provided, corresponding `class_id` will be used as label.
+            skip_label: Is set to `True`, skips bounding box label annotation.
+            color: RGB value for bounding box edges and filling.
+
+        Returns:
+            The annotated frame.image with orientated bounding boxes.
+        """
+        if frame.image_type != IMAGE_TYPE.INPUT_TENSOR:
+            segments.compensate_for_roi(frame.roi)
+
+        for i in range(len(segments)):
+            bbox = segments.oriented_bboxes[i]
+
+            if isinstance(segments, Segments):
+                class_id = segments.class_id[i] if segments.class_id is not None else None
+                idx = class_id if class_id is not None else i
+
+            if color is None:
+                c = self.color.by_idx(idx) if isinstance(self.color, ColorPalette) else self.color
+            else:
+                c = color
+
+            cv2.drawContours(frame.image, [bbox], 0, c.as_bgr(), 2)
+
+            if skip_label:
+                continue
+            label = f"{class_id}" if (labels is None or len(segments) != len(labels)) else labels[i]
+            self.set_label(
+                image=frame.image,
+                x=bbox[0][0] - math.ceil(self.thickness / 2),
+                y=bbox[0][1] - math.ceil(self.thickness / 2),
+                color=c.as_bgr(),
+                label=label,
+            )
+        return frame.image
+
+    def annotate_instance_segments(self, frame: Frame, segments: Segments, original_mask: bool = False) -> np.ndarray:
+        """
+        Draws instance segmentation areas on the frame using the provided segments.
+
+        Args:
+            frame: The frame to annotate.
+            segments: The segments defining the areas that will be drawn on the image.
+            original_mask: Boolean value that decides to use the original mask or instance segmetation output mask for visualization
+
+        Returns:
+            The annotated frame.image
+        """
+        h, w, _ = frame.image.shape
+        overlay = np.zeros((h, w, 4), dtype=np.uint8)
+
+        # NOTE: Compensating for any introduced modified region of interest (ROI)
+        # to ensure that detections are displayed correctly on top of the current `frame.image`.
+        if frame.image_type != IMAGE_TYPE.INPUT_TENSOR:
+            segments.compensate_for_roi(frame.roi)
+
+        for i in range(len(segments)):
+            if original_mask:
+                mask = segments.visual_masks[i]
+            else:
+                mask = segments.instance_masks[i]
+            c = self.color.by_idx(segments.class_id[i]) if isinstance(self.color, ColorPalette) else self.color
+            colour = [(0, 0, 0, 0), (*c.as_bgr(), 255)]
+            overlay_i = np.array(colour)[mask].astype(np.uint8)
+            overlay += cv2.resize(overlay_i, (w, h))
+
+        overlay[:, :, -1][overlay[:, :, -1] == 255] = 150
+        frame.image = cv2.addWeighted(frame.image, 1, overlay[:, :, :3], 0.6, 0)
+
+        return frame.image
+
+    def annotate_keypoints(
         self,
         frame: Frame,
         poses: Poses,
+        num_keypoints: int = 17,
+        skeleton: List[Tuple[int, int]] = [
+            (5, 6),
+            (11, 12),
+            (5, 7),
+            (7, 9),
+            (5, 11),
+            (11, 13),
+            (13, 15),
+            (6, 8),
+            (8, 10),
+            (6, 12),
+            (12, 14),
+            (14, 16),
+        ],
         keypoint_radius: Optional[int] = 3,
         keypoint_color: Optional[Color] = Color.green(),
         line_color: Optional[Color] = Color.yellow(),
@@ -442,6 +689,8 @@ class Annotator:
         Args:
             frame: The frame to annotate.
             poses: The detections defining the skeletons that will be drawn on the image.
+            num_keypoints: The number of unique keypoints in the poses object.
+            skeleton: Edge between the keypoints that make up the skeleton to annotate.
             keypoint_radius: The radius of the keypoints to be drawn. Defaults to 3.
             keypoint_color: The color of the keypoints. Defaults to green.
             line_color: The color of the lines connecting keypoints. Defaults to yellow.
@@ -460,33 +709,12 @@ class Annotator:
         if frame.image_type != IMAGE_TYPE.INPUT_TENSOR:
             poses.compensate_for_roi(frame.roi)
 
-        skeleton = [
-            (5, 6),
-            (11, 12),
-            (5, 7),
-            (7, 9),
-            (5, 11),
-            (11, 13),
-            (13, 15),
-            (6, 8),
-            (8, 10),
-            (6, 12),
-            (12, 14),
-            (14, 16),
-        ]
-
-        # keypoint_names = [
-        #     'nose', 'leftEye', 'rightEye', 'leftEar', 'rightEar', 'leftShoulder', 'rightShoulder',
-        #     'leftElbow', 'rightElbow', 'leftWrist', 'rightWrist', 'leftHip', 'rightHip',
-        #     'leftKnee', 'rightKnee', 'leftAnkle', 'rightAnkle'
-        # ]
-
         h, w, _ = frame.image.shape
 
         def draw_keypoints(poses, image, pose_idx, keypoint_idx, w, h, threshold=keypoint_score_threshold):
             if poses.keypoint_scores[pose_idx][keypoint_idx] >= threshold:
-                y = int(poses.keypoints[pose_idx][2 * keypoint_idx] * h)
-                x = int(poses.keypoints[pose_idx][2 * keypoint_idx + 1] * w)
+                x = int(poses.keypoints[pose_idx, keypoint_idx, 0] * w)
+                y = int(poses.keypoints[pose_idx, keypoint_idx, 1] * h)
                 cv2.circle(image, (x, y), keypoint_radius, keypoint_color.as_bgr(), -1)
 
         def draw_line(poses, image, pose_idx, keypoint1, keypoint2, w, h, threshold=keypoint_score_threshold):
@@ -494,16 +722,16 @@ class Annotator:
                 poses.keypoint_scores[pose_idx][keypoint1] >= threshold
                 and poses.keypoint_scores[pose_idx][keypoint2] >= threshold
             ):
-                y1 = int(poses.keypoints[pose_idx][2 * keypoint1] * h)
-                x1 = int(poses.keypoints[pose_idx][2 * keypoint1 + 1] * w)
-                y2 = int(poses.keypoints[pose_idx][2 * keypoint2] * h)
-                x2 = int(poses.keypoints[pose_idx][2 * keypoint2 + 1] * w)
+                x1 = int(poses.keypoints[pose_idx, keypoint1, 0] * w)
+                y1 = int(poses.keypoints[pose_idx, keypoint1, 1] * h)
+                x2 = int(poses.keypoints[pose_idx, keypoint2, 0] * w)
+                y2 = int(poses.keypoints[pose_idx, keypoint2, 1] * h)
                 cv2.line(image, (x1, y1), (x2, y2), line_color.as_bgr(), 2)
 
         for i in range(poses.n_detections):
             if poses.confidence[i] > keypoint_score_threshold:
                 # Draw keypoints
-                for j in range(17):
+                for j in range(num_keypoints):
                     draw_keypoints(poses, frame.image, i, j, w, h)
 
                 # Draw skeleton lines
@@ -511,3 +739,19 @@ class Annotator:
                     draw_line(poses, frame.image, i, keypoint1, keypoint2, w, h)
 
         return frame.image
+
+    def crop(self, image: np.ndarray, x1: int, y1: int, x2: int, y2: int) -> np.ndarray:
+        """
+        Crop a rectangular region from an image.
+
+        Args:
+            image : The input image as a NumPy array.
+            x1 : The x-coordinate of the top-left corner of the crop.
+            y1 : The y-coordinate of the top-left corner of the crop.
+            x2 : The x-coordinate of the bottom-right corner of the crop.
+            y2 : The y-coordinate of the bottom-right corner of the crop.
+
+        Returns:
+            The cropped region of the image.
+        """
+        return image[y1:y2, x1:x2]

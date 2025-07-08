@@ -1,6 +1,7 @@
 ---
 title: Intro
 sidebar_position: 0
+hide_table_of_contents: true
 ---
 
 
@@ -13,7 +14,7 @@ Application Module Library (modlib) is an SDK designed to simplify and streamlin
 We're excited to see what you'll create. Let's get started! :rocket:
 
 :::note  
-The Application Module Library is still a young project and very much a work in progress. We're continuously extending and improving the library and our content to provide you with the most accurate information. If you have any questions or feedback, please don't hesitate to reach out or file an issue on Github!
+We're continuously extending and improving the library and our content to provide you with the most accurate information. If you have any questions or feedback, please don't hesitate to reach out or file an issue on GitHub!
 :::
 
 
@@ -26,9 +27,18 @@ The Application Module Library is still a young project and very much a work in 
     - [Model zoo](getting_started/model_zoo.md)
     - [Custom models](getting_started/custom_models.md)
     - [Devices](getting_started/devices.md)
+- **Devices**
+    - [AiCamera](devices/ai_camera.md)
+    - [Triton® Smart](devices/triton.md)
+    - [Interpreters](devices/interpreters.md)
 - **Application Modules**
     - [Tracker](examples/tracker.md)
     - [Area](examples/area.md)
     - [Counter](examples/counter.md)
     - [Matcher](examples/matcher.md)
     - [Heatmap](examples/heatmap.md)
+    - [Calculate](examples/calculate.md)
+    - [Blur](examples/blur.md)
+    - [Recording](examples/recording.md)
+    - [Motion](examples/motion.md)
+    - [Instance Segmentation](examples/instance_segmentation.md)

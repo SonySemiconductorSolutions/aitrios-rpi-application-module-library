@@ -1,0 +1,2 @@
+option('force_arena_found', type : 'boolean', value : false,
+       description : 'Force Arena SDK to be present so Triton can be built (fail if not found)')

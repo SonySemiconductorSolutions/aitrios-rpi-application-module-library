@@ -19,11 +19,57 @@ from abc import ABC, abstractmethod
 from collections import deque
 from typing import Optional
 
-import cv2
-import numpy as np
 
 from ..models import Model
 from .frame import Frame
+
+
+class Rate:
+    """
+    A class used to maintain and calculate a rolling average rate (e.g., frames per second).
+
+    The class accumulates timing deltas between consecutive updates in a deque and provides
+    the average rate based on the number of appended deltas over their sum.
+    """
+
+    def __init__(self, window: int = 30):
+        """
+        Initialize the Rate instance with a specified window size.
+
+        Args:
+            window: The maximum number of time deltas stored to compute the ongoing average.
+        """
+        self.value = 0
+        self.times = deque(maxlen=window)
+        self.last_time = time.perf_counter()
+
+    def init(self):
+        """
+        Re-initialize timing.
+        This should typically be called prior to collecting rate updates to reset the reference time.
+        """
+        self.last_time = time.perf_counter()
+
+    def update(self):
+        """
+        Record the time elapsed since the last update, then recalculate and store the new average rate.
+
+        This method appends the latest time delta to the deque and uses it (along with previously stored
+        deltas) to compute the new rolling average.
+        """
+        current_time = time.perf_counter()
+        self.times.append(current_time - self.last_time)
+        self.value = len(self.times) / sum(self.times)
+        self.last_time = current_time
+
+    def __repr__(self) -> str:
+        """
+        String representation of the current average rate.
+
+        Returns:
+            The current stored rate as a string.
+        """
+        return str(self.value)
 
 
 class Device(ABC):
@@ -64,9 +110,7 @@ class Device(ABC):
         self.enable_input_tensor = enable_input_tensor
         self.timeout = timeout
 
-        self.frame_times = deque(maxlen=30)
-        self.last_time = time.perf_counter()
-        self.fps = 0
+        self.start_time = time.perf_counter()
 
     @abstractmethod
     def deploy(self, model: Model, *args):
@@ -85,7 +129,7 @@ class Device(ABC):
         Abstract method to enter a device stream.
         Assumes to set the start time for the device stream to check time-out.
         """
-        self.start_time = time.perf_counter()
+        pass
 
     @abstractmethod
     def __exit__(self, exc_type, exc_value, exc_traceback):
@@ -111,19 +155,8 @@ class Device(ABC):
         Returns:
             The next frame in the device stream.
         """
-        self.update_fps()
         self.check_timeout()
         pass
-
-    def update_fps(self):
-        """
-        Utility method for updating the frames per second (FPS) value based on the time elapsed between frames.
-        """
-        current_time = time.perf_counter()
-        self.frame_times.append(current_time - self.last_time)
-        self.last_time = current_time
-        if len(self.frame_times) > 1:
-            self.fps = len(self.frame_times) / sum(self.frame_times)
 
     def check_timeout(self):
         """

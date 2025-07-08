@@ -24,13 +24,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-
 from typing import List, Tuple
 
 import numpy as np
 
 from modlib.devices.frame import Frame
-from modlib.models import Detections, Poses
+from modlib.models import Detections, Poses, Segments
 
 from .basetrack import BaseTrack, TrackState
 from .kalman_filter import KalmanFilter
@@ -41,7 +40,6 @@ class STrack(BaseTrack):
     shared_kalman = KalmanFilter()
 
     def __init__(self, tlwh, score):
-
         # wait activate
         self._tlwh = np.asarray(tlwh, dtype=np.float64)
         self.kalman_filter = None
@@ -179,7 +177,7 @@ class ToTrack:
     img_size: Tuple[int, int]
 
 
-def to_tracker(detections: Detections, frame_height: int, frame_width: int) -> ToTrack:
+def _to_tracker(detections: Detections, frame_height: int, frame_width: int) -> ToTrack:
     """
     Converts the detection object to a tracker object.
 
@@ -194,6 +192,8 @@ def to_tracker(detections: Detections, frame_height: int, frame_width: int) -> T
     out = ToTrack()
     out.img_info = (frame_height, frame_width)
     out.img_size = (frame_height, frame_width)
+    if detections.bbox is None:
+        detections.bbox = np.empty((0, 4))
     out.output_results = np.hstack((detections.bbox, detections.confidence[:, np.newaxis]))
 
     return out
@@ -253,13 +253,23 @@ class BYTETracker(object):
         Returns:
             The updated detections including tracklets.
         """
-        if not isinstance(detections, Detections) and not isinstance(detections, Poses):
-            raise ValueError("Input `detections` should be of type Detections or Poses")
+        if (
+            not isinstance(detections, Detections)
+            and not isinstance(detections, Poses)
+            and not isinstance(detections, Segments)
+        ):
+            raise ValueError("Input `detections` should be of type Detections, Poses, or Segments")
 
-        tracks = self._update(to_tracker(detections, frame.height, frame.width))
-        detections.tracker_id = match_detections_with_tracks(detections, tracks)
+        tracks = self._update(_to_tracker(detections, frame.height, frame.width))
+        detections.tracker_id = _match_detections_with_tracks(detections, tracks)
 
         return detections
+
+    def get_stracks_boxes(self):
+        tracked = _tracks2boxes(tracks=self.tracked_stracks)
+        lost = _tracks2boxes(tracks=self.lost_stracks)
+        removed = _tracks2boxes(tracks=self.removed_stracks)
+        return (tracked, lost, removed)
 
     def _update(self, result):
         output_results = result.output_results
@@ -267,7 +277,7 @@ class BYTETracker(object):
         img_size = result.img_size
 
         self.frame_id += 1
-        activated_starcks = []
+        activated_stracks = []
         refind_stracks = []
         lost_stracks = []
         removed_stracks = []
@@ -308,7 +318,7 @@ class BYTETracker(object):
                 tracked_stracks.append(track)
 
         """ Step 2: First association, with high score detection boxes"""
-        strack_pool = joint_stracks(tracked_stracks, self.lost_stracks)
+        strack_pool = _joint_stracks(tracked_stracks, self.lost_stracks)
         # Predict the current location with KF
         STrack.multi_predict(strack_pool)
         dists = iou_distance(strack_pool, detections)
@@ -321,7 +331,7 @@ class BYTETracker(object):
             det = detections[idet]
             if track.state == TrackState.Tracked:
                 track.update(detections[idet], self.frame_id)
-                activated_starcks.append(track)
+                activated_stracks.append(track)
             else:
                 track.re_activate(det, self.frame_id, new_id=False)
                 refind_stracks.append(track)
@@ -340,7 +350,7 @@ class BYTETracker(object):
             det = detections_second[idet]
             if track.state == TrackState.Tracked:
                 track.update(det, self.frame_id)
-                activated_starcks.append(track)
+                activated_stracks.append(track)
             else:
                 track.re_activate(det, self.frame_id, new_id=False)
                 refind_stracks.append(track)
@@ -359,7 +369,7 @@ class BYTETracker(object):
         matches, u_unconfirmed, u_detection = linear_assignment(dists, thresh=0.7)
         for itracked, idet in matches:
             unconfirmed[itracked].update(detections[idet], self.frame_id)
-            activated_starcks.append(unconfirmed[itracked])
+            activated_stracks.append(unconfirmed[itracked])
         for it in u_unconfirmed:
             track = unconfirmed[it]
             track.mark_removed()
@@ -371,7 +381,7 @@ class BYTETracker(object):
             if track.score < self.det_thresh:
                 continue
             track.activate(self.kalman_filter, self.frame_id)
-            activated_starcks.append(track)
+            activated_stracks.append(track)
         """ Step 5: Update state"""
         for track in self.lost_stracks:
             if self.frame_id - track.end_frame > self.max_time_lost:
@@ -381,20 +391,20 @@ class BYTETracker(object):
         # print('Ramained match {} s'.format(t4-t3))
 
         self.tracked_stracks = [t for t in self.tracked_stracks if t.state == TrackState.Tracked]
-        self.tracked_stracks = joint_stracks(self.tracked_stracks, activated_starcks)
-        self.tracked_stracks = joint_stracks(self.tracked_stracks, refind_stracks)
-        self.lost_stracks = sub_stracks(self.lost_stracks, self.tracked_stracks)
+        self.tracked_stracks = _joint_stracks(self.tracked_stracks, activated_stracks)
+        self.tracked_stracks = _joint_stracks(self.tracked_stracks, refind_stracks)
+        self.lost_stracks = _sub_stracks(self.lost_stracks, self.tracked_stracks)
         self.lost_stracks.extend(lost_stracks)
-        self.lost_stracks = sub_stracks(self.lost_stracks, self.removed_stracks)
+        self.lost_stracks = _sub_stracks(self.lost_stracks, self.removed_stracks)
         self.removed_stracks.extend(removed_stracks)
-        self.tracked_stracks, self.lost_stracks = remove_duplicate_stracks(self.tracked_stracks, self.lost_stracks)
+        self.tracked_stracks, self.lost_stracks = _remove_duplicate_stracks(self.tracked_stracks, self.lost_stracks)
         # get scores of lost tracks
         output_stracks = [track for track in self.tracked_stracks if track.is_activated]
 
         return output_stracks
 
 
-def joint_stracks(tlista, tlistb):
+def _joint_stracks(tlista, tlistb):
     exists = {}
     res = []
     for t in tlista:
@@ -408,7 +418,7 @@ def joint_stracks(tlista, tlistb):
     return res
 
 
-def sub_stracks(tlista, tlistb):
+def _sub_stracks(tlista, tlistb):
     stracks = {}
     for t in tlista:
         stracks[t.track_id] = t
@@ -419,7 +429,7 @@ def sub_stracks(tlista, tlistb):
     return list(stracks.values())
 
 
-def remove_duplicate_stracks(stracksa, stracksb):
+def _remove_duplicate_stracks(stracksa, stracksb):
     pdist = iou_distance(stracksa, stracksb)
     pairs = np.where(pdist < 0.15)
     dupa, dupb = list(), list()
@@ -435,18 +445,18 @@ def remove_duplicate_stracks(stracksa, stracksb):
     return resa, resb
 
 
-def tracks2boxes(tracks: List[STrack]) -> np.ndarray:
+def _tracks2boxes(tracks: List[STrack]) -> np.ndarray:
     return np.array([track.tlbr for track in tracks], dtype=float)
 
 
-def match_detections_with_tracks(detections: Detections, tracks: List[STrack]) -> np.ndarray:
-
+def _match_detections_with_tracks(detections: Detections, tracks: List[STrack]) -> np.ndarray:
     if not np.any(detections.bbox) or len(tracks) == 0:
         # Keep the tracker_ids array length in sync with bbox len to avoid crash further down.
         return np.full(len(detections.bbox), -1)
 
-    tracks_boxes = tracks2boxes(tracks=tracks)
+    tracks_boxes = _tracks2boxes(tracks=tracks)
     iou = bbox_overlaps(tracks_boxes, detections.bbox)
+
     track2detection = np.argmax(iou, axis=1)
 
     tracker_ids = np.array([-1] * len(detections))

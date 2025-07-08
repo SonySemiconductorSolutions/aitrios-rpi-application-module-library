@@ -14,9 +14,10 @@
 # limitations under the License.
 #
 
+from . import blur
 from .annotate import Annotator, ColorPalette
 from .area import Area
 from .heatmap import Heatmap
 from .matcher import Matcher
 from .object_counter import ObjectCounter
-from .tracker.byte_tracker import BYTETracker
+from .tracker import BYTETracker

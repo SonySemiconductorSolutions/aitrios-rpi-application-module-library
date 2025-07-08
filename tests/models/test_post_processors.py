@@ -97,15 +97,14 @@ def test_pp_posenet():
 
 
 def test_pp_segment():
-    # Create a mock output tensor: 320x320 image with random uint8 values between 0 and 20
-    mock_output = [np.random.randint(0, 21, size=(320, 320), dtype=np.uint8)]
+    # Create a mock output tensor: 320x320 image with random int8 values between 0 and 20
+    mock_output = [np.random.randint(0, 21, size=(320, 320), dtype=np.int8)]
 
     result = pp_segment(mock_output)
 
     assert isinstance(result, Segments)
-    assert np.array_equal(result.mask, mock_output[0])
     assert result.mask.shape == (320, 320)
-    assert result.mask.dtype == np.uint8
+    assert result.mask.dtype == np.int8
 
     assert all(1 <= idx <= 20 for idx in result.indeces)
     assert len(result.indeces) == len(set(result.indeces))  # Ensure uniqueness

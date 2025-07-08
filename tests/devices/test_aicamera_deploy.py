@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import os
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -23,8 +24,11 @@ from modlib.models import MODEL_TYPE
 def camera():
     with patch("modlib.devices.ai_camera.ai_camera.check_dir_required") as mock_check_dir_required:
         mock_check_dir_required.return_value = None
-        from modlib.devices import AiCamera        
-        yield AiCamera()   
+        from modlib.devices import AiCamera
+        def init_overwrite(self, *args, **kwargs): 
+            self.camera_id = None
+        AiCamera.__init__ = init_overwrite
+        yield AiCamera() 
 
 @pytest.fixture
 def model():
@@ -38,10 +42,6 @@ def model():
 @pytest.fixture
 def mock_camera_methods(camera):
     camera.prepare_model_for_deployment = MagicMock()
-    camera._configure_for_deployment = MagicMock()
-    camera._initiate_picamera2 = MagicMock()
-    camera._picam2_start = MagicMock()
-    
     yield camera   
 
 @pytest.fixture
@@ -152,12 +152,11 @@ def test_prepare_model_for_deployment_is_framework_onnx_networkfile_missing(mock
 def test_deploy_networkfile(mock_camera_methods, model):   
     camera = mock_camera_methods
 
-    camera.deploy(model)
+    with patch("modlib.devices.ai_camera.ai_camera.IMX500") as MockIMX500:
+        camera.deploy(model)
 
-    camera.prepare_model_for_deployment.assert_called_once()
-    camera._configure_for_deployment.assert_called_once()
-    camera._initiate_picamera2.assert_called_once()
-    camera._picam2_start.assert_called_once()
+        camera.prepare_model_for_deployment.assert_called_once()
+        MockIMX500.assert_called_once_with(os.path.abspath(camera.prepare_model_for_deployment.return_value), camera_id=camera.camera_id)
 
 def test_deploy_networkfile_missing(mock_camera_methods, model):
     camera = mock_camera_methods
@@ -166,9 +165,3 @@ def test_deploy_networkfile_missing(mock_camera_methods, model):
 
     with pytest.raises(FileNotFoundError):
         camera.deploy(model)
-
-
-    
-
-
-

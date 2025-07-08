@@ -22,7 +22,6 @@ ASSETS_DIR = f"{os.path.dirname(os.path.abspath(__file__))}/assets"
 
 
 def get_assets():
-
     get_imagenet_samples(os.path.join(ASSETS_DIR, "imagenet_samples"))
     get_coco_samples(os.path.join(ASSETS_DIR, "coco_samples"))
     get_tracking_video(ASSETS_DIR)

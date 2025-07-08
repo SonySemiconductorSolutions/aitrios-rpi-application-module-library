@@ -15,9 +15,7 @@
 #
 
 import base64
-import gzip
 import sys
-from collections import namedtuple
 from dataclasses import dataclass
 from typing import Optional, Tuple, Union
 
@@ -26,7 +24,26 @@ import numpy as np
 
 from ..models import COLOR_FORMAT, Anomaly, Classifications, Detections, Poses, Segments
 
-ROI = namedtuple("ROI", ["left", "top", "width", "height"])
+
+CV2_WINDOWS = set()
+
+
+@dataclass
+class ROI:
+    """
+    Region of Interest (ROI) specifying the bounding box coordinates.
+    """
+
+    left: float
+    top: float
+    width: float
+    height: float
+
+    def __getitem__(self, index: int) -> float:
+        return (self.left, self.top, self.width, self.height)[index]
+
+    def __iter__(self):
+        return iter((self.left, self.top, self.width, self.height))
 
 
 @dataclass
@@ -96,6 +113,9 @@ class Frame:
         input_tensor: Optional[np.ndarray] = None,
         roi: Optional[ROI] = None,
     ):
+        """
+        Initialize an Frame object.
+        """
         self.timestamp = timestamp
         self._image = image
         self.image_type = image_type
@@ -180,6 +200,7 @@ class Frame:
         rotate: Optional[int] = None,
         flip: Optional[int] = None,
         resize_image: bool = False,
+        window_name: str = "Application",
     ):
         """
         Display the frame with various options for visualization.
@@ -195,6 +216,7 @@ class Frame:
                 > None: No rotation.
             flip: The flip code for the image. Use 0 for vertical, 1 for horizontal, -1 for both, or None for no flip.
             resize_image: If True, resize the image to fit the display window.
+            window_name: Name identifier string of the cv2 window.
 
         Raises:
             ValueError: If the cropping parameter is not a valid ROI or tuple of 4 floats.
@@ -264,15 +286,20 @@ class Frame:
                 cv2.LINE_AA,
             )
 
-        cv2.namedWindow("Application", cv2.WINDOW_NORMAL)
+        if window_name not in CV2_WINDOWS:
+            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+            CV2_WINDOWS.add(window_name)
+            cv2.waitKey(100)  # Allow time to create the window
+
         if resize_image:
-            cv2.resizeWindow("Application", (W, H))
+            cv2.resizeWindow(window_name, (W, H))
             img = cv2.resize(img, (W, H))
 
-        cv2.imshow("Application", img)
+        cv2.imshow(window_name, img)
 
         # 'ESC' key or window is closed manually
-        if cv2.waitKey(1) & 0xFF == 27 or cv2.getWindowProperty("Application", cv2.WND_PROP_VISIBLE) < 1:
+        if cv2.waitKey(1) & 0xFF == 27 or cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1:
+            CV2_WINDOWS.clear()
             cv2.destroyAllWindows()
             sys.exit()
 
@@ -287,7 +314,7 @@ class Frame:
             ret, buffer = cv2.imencode(
                 ".jpg", cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR) if self.color_format == "RGB" else self.image
             )
-            image = f'data:image/jpeg;base64,{base64.b64encode(buffer).decode("utf-8")}'
+            image = f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}"
         else:
             image = None
 
@@ -298,8 +325,8 @@ class Frame:
             "width": self.width,
             "height": self.height,
             "channels": self.channels,
-            "detections": self.detections.json(),
-            "detection_type": type(self.detections).__name__,
+            "detections": self.detections.json() if self._detections else None,
+            "detection_type": type(self.detections).__name__ if self._detections else None,
             "new_detection": self.new_detection,
             "fps": self.fps,
             "dps": self.dps,
@@ -331,7 +358,9 @@ class Frame:
 
         # Get detection results
         detection_type = data.get("detection_type")
-        if hasattr(RESULT_TYPE, detection_type):
+        if detection_type is None:
+            detections = None
+        elif hasattr(RESULT_TYPE, detection_type):
             detection_class = getattr(RESULT_TYPE, detection_type)
             detections = detection_class.from_json(data["detections"])
         else:
