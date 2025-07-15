@@ -20,7 +20,7 @@ from modlib.models import COLOR_FORMAT, MODEL_TYPE, Model
 from modlib.models.post_processors import pp_yolo_pose_ultralytics
 
 
-class YoloPose(Model):
+class YOLOPose(Model):
     def __init__(self):
                 
         # NOTE: This Sample Code is meant to be used with AI models such as Ultralytics YOLO. Please note that
@@ -41,8 +41,8 @@ class YoloPose(Model):
         return pp_yolo_pose_ultralytics(output_tensors)
 
 
-device = AiCamera(frame_rate=17)  # Optimal frame rate for maximum DPS of the Yolo-pose model running on the AI Camera
-model = YoloPose()
+device = AiCamera(frame_rate=17)  # Optimal frame rate for maximum DPS of the YOLO-pose model running on the AI Camera
+model = YOLOPose()
 device.deploy(model)
 
 annotator = Annotator()

@@ -111,7 +111,7 @@ def pp_od_bscn(output_tensors: List[np.ndarray]) -> Detections:
 def pp_od_yolo_ultralytics(output_tensors: List[np.ndarray], input_tensor_sz: int = 640) -> Detections:
     """
     Performs post-processing on an Object Detection result tensor.
-    In this case the model comes from Ultralytics Yolov8n/Yolo11n model exported
+    In this case the model comes from Ultralytics YOLOv8n/YOLO11n model exported
     for imx using ultralytics tools (onnx model).
     Compared with `pp_od_bscn`:
     - bbox xy order is different
@@ -549,7 +549,7 @@ def pp_higherhrnet(output_tensors: List[np.ndarray]) -> Poses:
 
 def pp_yolov8n_pose(output_tensors: List[np.ndarray]) -> Poses:
     """
-    Performs post-processing on a raw YoloV8n-pose result tensor.
+    Performs post-processing on a raw YOLOV8n-pose result tensor.
 
     Args:
         output_tensors: Resulting output tensors to be processed.
@@ -581,8 +581,8 @@ def pp_yolov8n_pose(output_tensors: List[np.ndarray]) -> Poses:
 
 def pp_yolo_pose_ultralytics(output_tensors: List[np.ndarray], input_tensor_sz: int = 640, num_keypoints: int = 17) -> Poses:
     """
-    Performs post-processing on a Yolo-pose result tensor.
-    In this case the model comes from the Ultralytics Yolov8n-pose/Yolo11n-pose model exported
+    Performs post-processing on a YOLO-pose result tensor.
+    In this case the model comes from the Ultralytics YOLOv8n-pose/YOLO11n-pose model exported
     for imx using ultralytics tools (onnx model).
 
     Args:
@@ -625,7 +625,7 @@ def pp_segment(output_tensors: List[np.ndarray]) -> Segments:
 
 def pp_yolov8n_segment(output_tensors: List[np.ndarray]) -> Segments:
     """
-    Performs post-processing on a raw YoloV8n-segment result tensor.
+    Performs post-processing on a raw YOLOV8n-segment result tensor.
     NOTE: The individual heatmaps for each detected segment are post processed to a single
     mask that contains the class id of the mostly likely object in that pixel.
 
