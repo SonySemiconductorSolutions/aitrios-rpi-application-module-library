@@ -57,7 +57,7 @@
 <h2 class="anchor anchorWithStickyNavbar_LWe7" id="pp_od_yolo_ultralytics"><span class="signature-title">pp_od_yolo_ultralytics</span><a href="#pp_od_yolo_ultralytics" class="hash-link" aria-label="Direct link to pp_od_yolo_ultralytics" title="Direct link to pp_od_yolo_ultralytics">​</a></h2>
 <div class="signature"><b>pp_od_yolo_ultralytics(</b>output_tensors: List[numpy.ndarray], input_tensor_sz: int = 640<b>)</b> ‑&gt; <a href="/en/application-module-library/docs/api-reference/models/results#detections">Detections</a></div>
 <p>Performs post-processing on an Object Detection result tensor.<br>
-<!-- -->In this case the model comes from Ultralytics Yolov8n/Yolo11n model exported<br>
+<!-- -->In this case the model comes from Ultralytics YOLOv8n/YOLO11n model exported<br>
 <!-- -->for imx using ultralytics tools (onnx model).<br>
 <!-- -->Compared with <code>pp_od_bscn</code>:</p>
 <ul>
@@ -148,7 +148,7 @@ and computing the losses. (Recommended to be a multiple of the output stride.)</
 <div class="module-separator" data-content="Function"></div>
 <h2 class="anchor anchorWithStickyNavbar_LWe7" id="pp_yolov8n_pose"><span class="signature-title">pp_yolov8n_pose</span><a href="#pp_yolov8n_pose" class="hash-link" aria-label="Direct link to pp_yolov8n_pose" title="Direct link to pp_yolov8n_pose">​</a></h2>
 <div class="signature"><b>pp_yolov8n_pose(</b>output_tensors: List[numpy.ndarray]<b>)</b> ‑&gt; <a href="/en/application-module-library/docs/api-reference/models/results#poses">Poses</a></div>
-<p>Performs post-processing on a raw YoloV8n-pose result tensor.</p>
+<p>Performs post-processing on a raw YOLOv8n-pose result tensor.</p>
 <p><strong>Args:</strong></p>
 <ul>
 <li><strong>output_tensors</strong> (List[numpy.ndarray]): Resulting output tensors to be processed.</li>
@@ -158,8 +158,8 @@ and computing the losses. (Recommended to be a multiple of the output stride.)</
 <div class="module-separator" data-content="Function"></div>
 <h2 class="anchor anchorWithStickyNavbar_LWe7" id="pp_yolo_pose_ultralytics"><span class="signature-title">pp_yolo_pose_ultralytics</span><a href="#pp_yolo_pose_ultralytics" class="hash-link" aria-label="Direct link to pp_yolo_pose_ultralytics" title="Direct link to pp_yolo_pose_ultralytics">​</a></h2>
 <div class="signature"><b>pp_yolo_pose_ultralytics(</b>output_tensors: List[numpy.ndarray], input_tensor_sz: int = 640, num_keypoints: int = 17<b>)</b> ‑&gt; <a href="/en/application-module-library/docs/api-reference/models/results#poses">Poses</a></div>
-<p>Performs post-processing on a Yolo-pose result tensor.<br>
-<!-- -->In this case the model comes from the Ultralytics Yolov8n-pose/Yolo11n-pose model exported<br>
+<p>Performs post-processing on a YOLO-pose result tensor.<br>
+<!-- -->In this case the model comes from the Ultralytics YOLOv8n-pose/YOLO11n-pose model exported<br>
 <!-- -->for imx using ultralytics tools (onnx model).</p>
 <p><strong>Args:</strong></p>
 <ul>
@@ -182,7 +182,7 @@ and computing the losses. (Recommended to be a multiple of the output stride.)</
 <div class="module-separator" data-content="Function"></div>
 <h2 class="anchor anchorWithStickyNavbar_LWe7" id="pp_yolov8n_segment"><span class="signature-title">pp_yolov8n_segment</span><a href="#pp_yolov8n_segment" class="hash-link" aria-label="Direct link to pp_yolov8n_segment" title="Direct link to pp_yolov8n_segment">​</a></h2>
 <div class="signature"><b>pp_yolov8n_segment(</b>output_tensors: List[numpy.ndarray]<b>)</b> ‑&gt; <a href="/en/application-module-library/docs/api-reference/models/results#segments">Segments</a></div>
-<p>Performs post-processing on a raw YoloV8n-segment result tensor.<br>
+<p>Performs post-processing on a raw YOLOv8n-segment result tensor.<br>
 <!-- -->NOTE: The individual heatmaps for each detected segment are post processed to a single<br>
 <!-- -->mask that contains the class id of the mostly likely object in that pixel.</p>
 <p><strong>Args:</strong></p>

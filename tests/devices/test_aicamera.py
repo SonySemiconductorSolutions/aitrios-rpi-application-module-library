@@ -20,7 +20,6 @@ from modlib.devices import AiCamera
 
 
 @pytest.fixture
-@pytest.mark.aicam
 def test_device():
     device = AiCamera(headless=True, timeout=5)
     # model = ...
