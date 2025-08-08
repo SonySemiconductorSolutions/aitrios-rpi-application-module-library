@@ -23,7 +23,7 @@ from modlib.models import COLOR_FORMAT, MODEL_TYPE, Model
 from modlib.models.post_processors import pp_od_yolo_ultralytics
 
 
-class Yolo(Model):
+class YOLO(Model):
     def __init__(self):
         
         # NOTE: This Sample Code is meant to be used with AI models such as Ultralytics YOLO. Please note that
@@ -41,7 +41,7 @@ class Yolo(Model):
         )
 
         self.labels = np.genfromtxt(
-            str(importlib.resources.files("modlib.models.zoo") / "assets" / "coco_labels_80.txt"),
+            "/path/to/yolo11n_imx_model/labels.txt",
             dtype=str,
             delimiter="\n",
         )
@@ -50,8 +50,8 @@ class Yolo(Model):
         return pp_od_yolo_ultralytics(output_tensors)
 
 
-device = AiCamera(frame_rate=16)  # Optimal frame rate for maximum DPS of the Yolo model running on the AI Camera
-model = Yolo()
+device = AiCamera(frame_rate=16)  # Optimal frame rate for maximum DPS of the YOLO model running on the AI Camera
+model = YOLO()
 device.deploy(model)
 
 annotator = Annotator()

@@ -378,7 +378,7 @@ class Detections(Result):
         tracker_id = np.array(data["tracker_id"]) if data.get("tracker_id") is not None else None
 
         instance = cls(bbox=bbox, confidence=confidence, class_id=class_id)
-        if tracker_id:
+        if tracker_id is not None and len(tracker_id) > 0:
             instance.tracker_id = tracker_id
         instance._roi_compensated = data["_roi_compensated"]
         return instance
