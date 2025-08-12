@@ -110,27 +110,44 @@ def pp_od_bscn(output_tensors: List[np.ndarray]) -> Detections:
 
 def pp_od_yolo_ultralytics(output_tensors: List[np.ndarray], input_tensor_sz: int = 640) -> Detections:
     """
-    Performs post-processing on an Object Detection result tensor.
-    In this case the model comes from Ultralytics YOLOv8n/YOLO11n model exported
-    for imx using ultralytics tools (onnx model).
-    Compared with `pp_od_bscn`:
-    - bbox xy order is different
-    - bboxes are scaled to input tensor size
+    Post-processes output tensors from Ultralytics YOLO models exported for IMX.
 
-    Output tensor order: Boxes - Scores - Classes - Number
+    Supports multiple tensor formats:
+    - 5 tensors: [boxes, scores, classes, unused, num_detections]
+    - 4 tensors: [boxes, scores, classes, num_detections]
+    - 3 tensors: [boxes, scores, classes] (assumes all are valid)
 
     Args:
-        output_tensors: Resulting output tensors to be processed.
-        input_tensor_sz: Input tensor size, default 640.
+        output_tensors: List of output tensors from the model.
+        input_tensor_sz: Size of input tensor used during inference.
 
     Returns:
-        The post-processed object detection detections.
+        Detections object with normalized bounding boxes, class IDs, and confidence scores.
     """
-    n_detections = int(output_tensors[3])
+
+    if len(output_tensors) == 5:
+        n_detections = int(output_tensors[4][0])
+        boxes = output_tensors[0][:n_detections]
+        scores = output_tensors[1][:n_detections]
+        classes = output_tensors[2][:n_detections]
+        
+    elif len(output_tensors) == 4:
+        n_detections = int(output_tensors[3])
+        boxes = output_tensors[0][:n_detections]
+        scores = output_tensors[1][:n_detections]
+        classes = output_tensors[2][:n_detections]
+
+    elif len(output_tensors) == 3:
+        boxes = output_tensors[0]
+        scores = output_tensors[1]
+        classes = output_tensors[2]
+    else:
+        raise ValueError(f"No se reconoce la estructura de tensores: {len(output_tensors)}")
+
     detections = Detections(
-        bbox=output_tensors[0][:n_detections],
-        class_id=np.array(output_tensors[2][:n_detections], dtype=np.uint16),
-        confidence=output_tensors[1][:n_detections],
+        bbox=boxes,
+        class_id=classes.astype(np.uint16),
+        confidence=scores,
     )
     detections.bbox /= input_tensor_sz
     return detections
