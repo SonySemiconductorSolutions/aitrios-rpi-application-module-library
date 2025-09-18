@@ -1,0 +1,17 @@
+name: Docs
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to use (e.g., 1.0.2)"
+        required: true
+        type: string
+
+jobs:
+  print-version:
+    name: Print provided version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Echo version
+        run: echo "Version is ${{ github.event.inputs.version }}"

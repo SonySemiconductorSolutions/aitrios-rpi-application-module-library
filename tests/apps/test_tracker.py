@@ -15,17 +15,22 @@
 #
 
 import pytest
+import importlib.resources
+import numpy as np
 
 from modlib.apps import BYTETracker
 from modlib.apps.annotate import ColorPalette, Annotator
-from modlib.models.zoo import SSDMobileNetV2FPNLite320x320
 
 from tests.test_devices import test_apps_device
 
 
 def test_annotations(test_apps_device):
 
-    LABELS = SSDMobileNetV2FPNLite320x320().labels
+    LABELS = np.genfromtxt(
+        str(importlib.resources.files("modlib.models.zoo") / "assets" / "coco_labels_80.txt"),
+        dtype=str,
+        delimiter="\n"
+    )
 
     class BYTETrackerArgs:
         track_thresh: float = 0.25
@@ -42,16 +47,13 @@ def test_annotations(test_apps_device):
 
     with test_apps_device as stream:
         for frame in stream:
-            detections = frame.detections[frame.detections.confidence > 0.50]
-            
-            detections = tracker.update(frame, detections)
-
+            detections = tracker.update(frame, frame.detections)
             test_results.update(detections.tracker_id)
 
-            # NOTE: Manually check the tracklets
+            # # NOTE: Manually check the tracklets
             # labels = [f"#{t} {LABELS[c]}: {s:0.2f}" for _, s, c, t in detections]
             # annotator.annotate_boxes(frame, detections, labels=labels)
             # frame.display()
 
-    # Exactly 2 tracklets, 1 for the person and 1 for the tennis racket
-    assert len(test_results) == 2 and all(x in test_results for x in (1, 2))
+    # Exactly 3 tracklets, 1 person, 1 tennis racket and 1 sports ball
+    assert len(test_results) == 3 and all(x in test_results for x in (1, 2, 3))

@@ -28,6 +28,7 @@ from ..post_processors import (
     pp_od_efficientdet_lite0,
     pp_posenet,
     pp_segment,
+    pp_od_yolo_ultralytics,
 )
 from ..results import Classifications, Detections, Poses, Segments
 from .utils import download_imx500_rpk_model
@@ -553,6 +554,58 @@ class SSDMobileNetV2FPNLite320x320(Model):
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Detections:
         return pp_od_bscn(output_tensors)
+
+
+class YOLOv8n(Model):
+    """
+    ```
+    from modlib.models.zoo import YOLOv8n
+    model = YOLOv8n()
+    ```
+    The network file `imx500_network_yolov8n_pp.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+    """
+
+    def __init__(self):
+        super().__init__(
+            model_file=download_imx500_rpk_model(model_file="imx500_network_yolov8n_pp.rpk", save_dir=ZOO_DIR),
+            model_type=MODEL_TYPE.RPK_PACKAGED,
+            color_format=COLOR_FORMAT.RGB,
+            preserve_aspect_ratio=False,
+        )
+        self.labels = np.genfromtxt(f"{ASSETS_DIR}/coco_labels_80.txt", dtype=str, delimiter="\n")
+
+    def pre_process(self, image: np.ndarray) -> np.ndarray:
+        raise NotImplementedError("Pre-processing not implemented for this model.")
+
+    def post_process(self, output_tensors: List[np.ndarray]) -> Detections:
+        return pp_od_yolo_ultralytics(output_tensors)
+
+
+class YOLO11n(Model):
+    """
+    ```
+    from modlib.models.zoo import YOLO11n
+    model = YOLO11n()
+    ```
+    The network file `imx500_network_yolo11n_pp.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+    """
+
+    def __init__(self):
+        super().__init__(
+            model_file=download_imx500_rpk_model(model_file="imx500_network_yolo11n_pp.rpk", save_dir=ZOO_DIR),
+            model_type=MODEL_TYPE.RPK_PACKAGED,
+            color_format=COLOR_FORMAT.RGB,
+            preserve_aspect_ratio=False,
+        )
+        self.labels = np.genfromtxt(f"{ASSETS_DIR}/coco_labels_80.txt", dtype=str, delimiter="\n")
+
+    def pre_process(self, image: np.ndarray) -> np.ndarray:
+        raise NotImplementedError("Pre-processing not implemented for this model.")
+
+    def post_process(self, output_tensors: List[np.ndarray]) -> Detections:
+        return pp_od_yolo_ultralytics(output_tensors)
 
 
 # ###############################################################################

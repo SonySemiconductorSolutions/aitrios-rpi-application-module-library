@@ -35,7 +35,14 @@ import time
 
 from tqdm import tqdm
 
-from .v4l2 import VIDIOC_S_CTRL, VIDIOC_S_EXT_CTRLS, v4l2_control, v4l2_ext_control, v4l2_ext_controls
+from .v4l2 import (
+    VIDIOC_S_CTRL,
+    VIDIOC_S_EXT_CTRLS,
+    VIDIOC_G_EXT_CTRLS,
+    v4l2_control,
+    v4l2_ext_control,
+    v4l2_ext_controls,
+)
 from .utils import libcamera
 
 try:
@@ -51,6 +58,7 @@ SENSOR_W = 4056
 SENSOR_H = 3040
 
 FW_NETWORK_STAGE = 2
+GET_DEVICE_ID_CTRL_ID = 0x00982902
 NETWORK_FW_FD_CTRL_ID = 0x00982901
 ROI_CTRL_ID = 0x00982900
 
@@ -95,6 +103,42 @@ class IMX500:
     def __del__(self):
         if self.device_fd:
             self.device_fd.close()
+
+    def get_device_id(self) -> str | None:
+        """
+        Retrieve the unique IMX500 device ID.
+
+        Returns:
+            str | None: The device ID as an ASCII string if successful, otherwise None.
+        """
+        ret = None
+        imx500_device_id = ""
+
+        r = (ctypes.c_uint32 * 4)()
+        r[0] = 0x0
+        r[1] = 0x0
+        r[2] = 0x0
+        r[3] = 0x0
+
+        c = (v4l2_ext_control * 1)()
+        c[0].p_u32 = r
+        c[0].id = GET_DEVICE_ID_CTRL_ID
+        c[0].size = 16
+
+        ctrl = v4l2_ext_controls()
+        ctrl.count = 1
+        ctrl.controls = c
+
+        try:
+            fcntl.ioctl(self.device_fd, VIDIOC_G_EXT_CTRLS, ctrl)
+            for i in range(4):
+                ret = ctrl.controls[0].p_u32[i]
+                imx500_device_id += "%08X" % ret
+        except OSError as err:
+            logger.error(f"IMX500: Unable to get device ID from device driver: {err}")
+            imx500_device_id = None
+
+        return imx500_device_id
 
     def get_fw_upload_progress(self, stage_req) -> tuple:
         """Returns the current progress of the fw upload in the form of (current, total)."""

@@ -643,6 +643,9 @@ class AiCamera(Device):
         self.imx500 = IMX500(os.path.abspath(network_file), camera_id=self.camera_id)
         self.imx500.show_network_fw_progress_bar()
 
+    def get_device_id(self) -> str:
+        return self.imx500.get_device_id()
+
     @staticmethod
     def _get_output_tensor_shape(req):
         # TODO: can be removed when output tensor shape available in model

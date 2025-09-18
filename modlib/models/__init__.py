@@ -15,4 +15,4 @@
 #
 
 from .model import COLOR_FORMAT, MODEL_TYPE, Model
-from .results import Anomaly, Classifications, Detections, Poses, Segments
+from .results import ROI, Anomaly, Classifications, Detections, Poses, Segments

@@ -29,5 +29,5 @@ from .post_processors import (
     pp_segment,
     pp_yolov8n_pose,
     pp_yolo_pose_ultralytics,
-    pp_yolov8n_segment,
+    pp_yolo_segment_ultralytics,
 )

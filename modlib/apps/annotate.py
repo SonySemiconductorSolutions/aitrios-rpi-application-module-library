@@ -326,7 +326,7 @@ class Annotator:
                 int(y2 * h),
             )
 
-            if isinstance(detections, Detections):
+            if isinstance(detections, Detections) or isinstance(detections, Segments):
                 class_id = detections.class_id[i] if detections.class_id is not None else None
                 idx = class_id if class_id is not None else i
             else:  # Poses
@@ -624,7 +624,7 @@ class Annotator:
             )
         return frame.image
 
-    def annotate_instance_segments(self, frame: Frame, segments: Segments, original_mask: bool = False) -> np.ndarray:
+    def annotate_instance_segments(self, frame: Frame, segments: Segments) -> np.ndarray:
         """
         Draws instance segmentation areas on the frame using the provided segments.
 
@@ -638,17 +638,17 @@ class Annotator:
         """
         h, w, _ = frame.image.shape
         overlay = np.zeros((h, w, 4), dtype=np.uint8)
-
         # NOTE: Compensating for any introduced modified region of interest (ROI)
         # to ensure that detections are displayed correctly on top of the current `frame.image`.
         if frame.image_type != IMAGE_TYPE.INPUT_TENSOR:
             segments.compensate_for_roi(frame.roi)
+        if len(np.array(segments.mask).shape) == 3:
+            masks = segments.mask
+        else:
+            masks = segments.instance_masks
 
         for i in range(len(segments)):
-            if original_mask:
-                mask = segments.visual_masks[i]
-            else:
-                mask = segments.instance_masks[i]
+            mask = masks[i]
             c = self.color.by_idx(segments.class_id[i]) if isinstance(self.color, ColorPalette) else self.color
             colour = [(0, 0, 0, 0), (*c.as_bgr(), 255)]
             overlay_i = np.array(colour)[mask].astype(np.uint8)

@@ -138,7 +138,7 @@ class ONNXInterpreter(Device):
 
             image, input_tensor = self.model.pre_process(input_frame)
             image_type = IMAGE_TYPE.INPUT_TENSOR
-            width, height, channels = image.shape
+            height, width, channels = image.shape
 
             input_name = self.onnx_model.get_inputs()[0].name
             output_names = [x.name for x in self.onnx_model.get_outputs()]

@@ -14,44 +14,19 @@
 # limitations under the License.
 #
 
-import importlib.resources
-import numpy as np
-
 from modlib.apps import Annotator
 from modlib.devices import AiCamera
-from modlib.models import COLOR_FORMAT, MODEL_TYPE, Model
-from modlib.models.post_processors import pp_od_yolo_ultralytics
-
-
-class YOLO(Model):
-    def __init__(self):
-        
-        # NOTE: This Sample Code is meant to be used with AI models such as Ultralytics YOLO. Please note that
-        # the different license may apply to the AI model you would use and we may not be able to comply 
-        # your request for source codes except for the Sample Code. For example, Ultralytics YOLO is licensed by
-        # Ultralytics Enterprise License, Ultralytics Academic License, or AGPL-3.0 License. If you want
-        # to use the Ultralytics YOLO for commercial purpose, you need to purchase the Enterprise License from below.
-        # [https://ultralytics.com/license]
-        
-        super().__init__(
-            model_file="/path/to/yolo11n_imx_model/packerOut.zip",
-            model_type=MODEL_TYPE.CONVERTED,
-            color_format=COLOR_FORMAT.RGB,
-            preserve_aspect_ratio=True,
-        )
-
-        self.labels = np.genfromtxt(
-            "/path/to/yolo11n_imx_model/labels.txt",
-            dtype=str,
-            delimiter="\n",
-        )
-
-    def post_process(self, output_tensors):
-        return pp_od_yolo_ultralytics(output_tensors)
-
+from modlib.models.zoo import YOLO11n
 
 device = AiCamera(frame_rate=16)  # Optimal frame rate for maximum DPS of the YOLO model running on the AI Camera
-model = YOLO()
+
+# NOTE: This Sample Code is meant to be used with AI models such as Ultralytics YOLO. Please note that
+# the different license may apply to the AI model you would use and we may not be able to comply
+# your request for source codes except for the Sample Code. For example, Ultralytics YOLO is licensed by
+# Ultralytics Enterprise License, Ultralytics Academic License, or AGPL-3.0 License. If you want
+# to use the Ultralytics YOLO for commercial purpose, you need to purchase the Enterprise License from below.
+# [https://ultralytics.com/license]
+model = YOLO11n()
 device.deploy(model)
 
 annotator = Annotator()

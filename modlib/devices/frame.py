@@ -22,28 +22,10 @@ from typing import Optional, Tuple, Union
 import cv2
 import numpy as np
 
-from ..models import COLOR_FORMAT, Anomaly, Classifications, Detections, Poses, Segments
+from ..models import COLOR_FORMAT, ROI, Anomaly, Classifications, Detections, Poses, Segments
 
 
 CV2_WINDOWS = set()
-
-
-@dataclass
-class ROI:
-    """
-    Region of Interest (ROI) specifying the bounding box coordinates.
-    """
-
-    left: float
-    top: float
-    width: float
-    height: float
-
-    def __getitem__(self, index: int) -> float:
-        return (self.left, self.top, self.width, self.height)[index]
-
-    def __iter__(self):
-        return iter((self.left, self.top, self.width, self.height))
 
 
 @dataclass
@@ -331,7 +313,7 @@ class Frame:
             "fps": self.fps,
             "dps": self.dps,
             "color_format": self.color_format,
-            "roi": self.roi,
+            "roi": self.roi.json() if self.roi else None,
         }
 
     @classmethod
@@ -378,5 +360,5 @@ class Frame:
             fps=data["fps"],
             dps=data["dps"],
             color_format=data["color_format"],
-            roi=data["roi"],
+            roi=ROI.from_json(data["roi"]) if data.get("roi") else None,
         )

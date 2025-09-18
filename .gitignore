@@ -22,7 +22,6 @@ pytest-coverage.txt
 
 dist
 build
-tests/assets
 examples/assets
 temp
 
