@@ -37,4 +37,6 @@ from .models import (
     ShuffleNetV2X1_5,
     SqueezeNet1_0,
     SSDMobileNetV2FPNLite320x320,
+    YOLO11n,
+    YOLOv8n,
 )

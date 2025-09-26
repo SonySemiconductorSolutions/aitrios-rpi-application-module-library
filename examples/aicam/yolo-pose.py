@@ -1,5 +1,5 @@
 #
-# Copyright 2024 Sony Semiconductor Solutions Corp. All rights reserved.
+# Copyright 2025 Sony Semiconductor Solutions Corp. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,14 +22,13 @@ from modlib.models.post_processors import pp_yolo_pose_ultralytics
 
 class YOLOPose(Model):
     def __init__(self):
-                
         # NOTE: This Sample Code is meant to be used with AI models such as Ultralytics YOLO. Please note that
-        # the different license may apply to the AI model you would use and we may not be able to comply 
+        # the different license may apply to the AI model you would use and we may not be able to comply
         # your request for source codes except for the Sample Code. For example, Ultralytics YOLO is licensed by
         # Ultralytics Enterprise License, Ultralytics Academic License, or AGPL-3.0 License. If you want
         # to use the Ultralytics YOLO for commercial purpose, you need to purchase the Enterprise License from below.
         # [https://ultralytics.com/license]
-        
+
         super().__init__(
             model_file="/path/to/yolo11n-pose_imx_model/packerOut.zip",
             model_type=MODEL_TYPE.CONVERTED,

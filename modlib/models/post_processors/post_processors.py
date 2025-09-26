@@ -21,7 +21,7 @@ from modlib.models.post_processors import cpp_post_processors
 
 from ..results import Anomaly, Classifications, Detections, Poses, Segments
 from .higherhrnet import postprocess_higherhrnet
-from .yolo import postprocess_yolov8_detection, postprocess_yolov8_inst_seg, postprocess_yolov8_keypoints
+from .yolo import postprocess_yolov8_detection, postprocess_yolov8_keypoints
 
 
 def pp_cls(output_tensors: List[np.ndarray]) -> Classifications:
@@ -579,9 +579,11 @@ def pp_yolov8n_pose(output_tensors: List[np.ndarray]) -> Poses:
     )
 
 
-def pp_yolo_pose_ultralytics(output_tensors: List[np.ndarray], input_tensor_sz: int = 640, num_keypoints: int = 17) -> Poses:
+def pp_yolo_pose_ultralytics(
+    output_tensors: List[np.ndarray], input_tensor_sz: int = 640, num_keypoints: int = 17
+) -> Poses:
     """
-    Performs post-processing on a YOLO-pose result tensor.
+    Performs post-processing on an Ultralytics YOLO-pose result tensor.
     In this case the model comes from the Ultralytics YOLOv8n-pose/YOLO11n-pose model exported
     for imx using ultralytics tools (onnx model).
 
@@ -623,49 +625,64 @@ def pp_segment(output_tensors: List[np.ndarray]) -> Segments:
     return Segments(mask=np.where(output_tensors[0] == 0, -1, output_tensors[0]))
 
 
-def pp_yolov8n_segment(output_tensors: List[np.ndarray]) -> Segments:
+def pp_yolo_segment_ultralytics(
+    output_tensors: List[np.ndarray], input_tensor_sz: int = 640, max_detections: int = 10, threshold: float = 0.5
+) -> Segments:
     """
-    Performs post-processing on a raw YOLOv8n-segment result tensor.
-    NOTE: The individual heatmaps for each detected segment are post processed to a single
-    mask that contains the class id of the mostly likely object in that pixel.
+    Performs post-processing on an Ultralytics YOLO-segments result tensor.
+    In this case the model comes from the Ultralytics YOLOv8n-segments/YOLO11n-segments model exported
+    for imx using ultralytics tools (onnx model).
 
     Args:
         output_tensors: Resulting output tensors to be processed.
+        input_tensor_sz: Input tensor size, default 640.
+        max_detections: Maximum number of detections, default is 10.
+        threshold: Threshold value of filtering the mask, default is 0.5.
 
     Returns:
         The post-processed segmentation results.
     """
 
-    boxes, scores, classes, masks = postprocess_yolov8_inst_seg(
-        outputs=[np.expand_dims(t, axis=0) for t in output_tensors],
-        conf=0.1,
-        iou_thres=0.7,
-        max_out_dets=10,  # batch=1
-    )
+    def sigmoid(x):
+        x = np.array(x)  # Ensure x is a NumPy array for element-wise operations
+        return np.where(x >= 0, 1 / (1 + np.exp(-x)), np.exp(x) / (1 + np.exp(x)))
 
-    detections = Detections(
-        bbox=np.array(boxes / 640)[:, [1, 0, 3, 2]],
-        class_id=classes,
-        confidence=scores,
-    )
+    n = len(np.array(output_tensors[2]))
 
-    mask_threshold = 0.6
-    masks = 1 / (1 + np.exp(-masks))
+    boxes = output_tensors[0][:max_detections]
+    classes = output_tensors[2][:max_detections].astype(np.uint16)
+    scores = output_tensors[1][:max_detections]
+    mask_coeffs = output_tensors[3][:max_detections]
+    masks_proto = output_tensors[4][:n]
 
-    # initialize as -1 background values
-    final_mask = -np.ones(masks.shape[1:], dtype=np.int8)
-    max_values = np.zeros(masks.shape[1:])
+    c, mh, mw = masks_proto.shape
+    masks_proto_flattered = masks_proto.reshape(c, -1)
+    mask = np.dot(mask_coeffs, masks_proto_flattered)
+    mask = sigmoid(mask)
+    mask = mask.reshape(-1, mh, mw)
+    binary_mask = (mask > threshold).astype(np.uint8)
 
-    for i in range(masks.shape[0]):
-        # Mask of locations where the current mask exceeds the threshold
-        # Update only where the current mask value is greater than the existing maximum
-        current_mask = masks[i] > mask_threshold
-        update_indices = current_mask & (masks[i] > max_values)
-        final_mask[update_indices] = classes[i]
-        max_values[update_indices] = masks[i][update_indices]
+    # crop
+    scale_x = mw / input_tensor_sz
+    scale_y = mh / input_tensor_sz
+    boxes_scaled = boxes.copy()
+    boxes_scaled[:, 0] *= scale_x
+    boxes_scaled[:, 1] *= scale_y
+    boxes_scaled[:, 2] *= scale_x
+    boxes_scaled[:, 3] *= scale_y
 
-    # TODO: Think about combinating return types
-    return [detections, Segments(mask=final_mask)]
+    boxes_scaled = boxes_scaled.astype(int)
+
+    x1, y1, x2, y2 = np.split(boxes_scaled[:, :, None], 4, axis=1)
+
+    r = np.arange(mw, dtype=x1.dtype)[None, None, :]
+    c = np.arange(mh, dtype=x1.dtype)[None, :, None]
+
+    cropped_mask = binary_mask * ((r >= x1) & (r < x2) & (c >= y1) & (c < y2))
+
+    boxes /= input_tensor_sz
+
+    return Segments(_bbox=boxes, class_id=classes, confidence=scores, mask=cropped_mask)
 
 
 def pp_anomaly(output_tensors: List[np.ndarray]) -> Anomaly:

@@ -14,29 +14,34 @@
 # limitations under the License.
 #
 
+import os
 import pytest
 
 from modlib.apps.matcher import Matcher
+from modlib.devices.playback import JsonCodec, PickleCodec, Playback
 
-from tests.test_devices import test_apps_device
 
+def test_matcher():
 
-def test_matcher(test_apps_device):
+    recording = f"{os.path.dirname(os.path.abspath(__file__))}/../assets/recordings/tea_nobg.json"
+    device = Playback(recording, codec=JsonCodec())
 
     matcher = Matcher(min_overlap_threshold=0.01, hysteresis=0)
 
     MATCH = False
 
-    with test_apps_device as stream:
+    with device as stream:
         for frame in stream:
-            
-            detections = frame.detections[frame.detections.confidence > 0.50]
+            # frame.image = np.zeros((frame.height, frame.width, 3), dtype=np.uint8)
+
+            detections = frame.detections
             p = detections[detections.class_id == 0]  # Person
-            s = detections[detections.class_id == 42] # Tennis Racket
+            c = detections[detections.class_id == 41]  # Cup
 
-            MATCH = matcher.match(p, s)
-
-            # NOTE: Manual check the matcher output
+            MATCH = matcher.match(p, c)
+            
+            # # NOTE: Manual check the matcher output
             # print(MATCH)
+
     
     assert MATCH == True

@@ -15,6 +15,7 @@
 #
 
 import pytest
+import importlib.resources
 import numpy as np
 
 from modlib.apps import ObjectCounter, Annotator
@@ -74,22 +75,28 @@ def test_object_counter(test_apps_device):
 
     counter = ObjectCounter()
     annotator = Annotator()
-    LABELS = SSDMobileNetV2FPNLite320x320().labels
+    LABELS = np.genfromtxt(
+        str(importlib.resources.files("modlib.models.zoo") / "assets" / "coco_labels_80.txt"),
+        dtype=str,
+        delimiter="\n"
+    )
 
     with test_apps_device as stream:
         for frame in stream:
-            detections = frame.detections[frame.detections.confidence > 0.50]
-            counter.update(detections)
+            counter.update(frame.detections)
             
             # print(counter.get(0), counter.get(42))
 
-            # labels = [f"#{t} {LABELS[c]}: {s:0.2f}" for _, s, c, t in detections]
-            # annotator.annotate_boxes(frame, detections, labels=labels)
+            # labels = [f"#{t} {LABELS[c]}: {s:0.2f}" for _, s, c, t in frame.detections]
+            # annotator.annotate_boxes(frame, frame.detections, labels=labels)
             # annotator.set_label(image=frame.image, x=430, y=30, color=(200, 200, 200), label="Total people detected " + str(counter.get(0)))
             # frame.display()
 
-    assert counter.get(0) == 100 # Person
-    assert counter.get(42) == 100 # Tennis racket
+    # {class_id: count}
+    # {0: 1, 38: 1, 32: 1}
+    assert counter.get(0) == 100 # Person: 1
+    assert counter.get(38) == 100 # Tennis racket: 1
+    assert counter.get(32) == 100 # Sports ball: 1
     assert counter.get(1) == 0 # Something else
         
 
@@ -97,21 +104,27 @@ def test_object_counter_tracker(test_apps_device):
 
     counter = ObjectCounter()
     annotator = Annotator()
-    LABELS = SSDMobileNetV2FPNLite320x320().labels
+
+    LABELS = np.genfromtxt(
+        str(importlib.resources.files("modlib.models.zoo") / "assets" / "coco_labels_80.txt"),
+        dtype=str,
+        delimiter="\n"
+    )
 
     with test_apps_device as stream:
         for frame in stream:
-            detections = frame.detections[frame.detections.confidence > 0.50]
-            detections.tracker_id = np.array([1, 2]) # Adding tracklets to the static image: Simulating a tracker.update
-            counter.update(detections)
+            frame.detections.tracker_id = np.array([1, 2, 3]) # Adding tracklets to the static image: Simulating a tracker.update
+            
+            counter.update(frame.detections)
 
-            # print(counter.get(0), counter.get(42))
-
-            # labels = [f"#{t} {LABELS[c]}: {s:0.2f}" for _, s, c, t in detections]
-            # annotator.annotate_boxes(frame, detections, labels=labels)
+            # labels = [f"#{t} {LABELS[c]}: {s:0.2f}" for _, s, c, t in frame.detections]
+            # annotator.annotate_boxes(frame, frame.detections, labels=labels)
             # annotator.set_label(image=frame.image, x=430, y=30, color=(200, 200, 200), label="Total people detected " + str(counter.get(0)))
             # frame.display()
-        
+
+    # {class_id: count}
+    # {0: 1, 38: 1, 32: 1}
     assert counter.get(0) == 1 # Person
-    assert counter.get(42) == 1 # Tennis racket
+    assert counter.get(38) == 1 # Tennis racket
+    assert counter.get(32) == 1 # Sports ball
     assert counter.get(1) == 0 # Something else

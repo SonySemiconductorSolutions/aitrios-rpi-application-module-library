@@ -17,7 +17,7 @@
 import base64
 import gzip
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import Iterator, List, Tuple, Union
 
 import cv2
@@ -34,6 +34,19 @@ class ROI:
     top: float
     width: float
     height: float
+
+    def json(self) -> dict:
+        """
+        Convert the ROI to a JSON-serializable dictionary.
+        """
+        return asdict(self)
+
+    @classmethod
+    def from_json(cls, data: dict) -> "ROI":
+        """
+        Create an ROI from a JSON-serializable dictionary.
+        """
+        return cls(**{k: float(data[k]) for k in ("left", "top", "width", "height")})
 
     def __getitem__(self, index: int) -> float:
         return (self.left, self.top, self.width, self.height)[index]
@@ -563,15 +576,23 @@ class Poses(Result):
         Returns:
             A dictionary representation of the Detections object with the following keys:
             - "n_detections" (int): Number of detected poses.
-            - "confidence" (list):
-            - "keypoints" (list):
-            - "keypoint_scores" (list):
+            - "confidence" (list): Confidence scores related to the detected poses.
+            - "keypoints" (list): Detected keypoint coordinates.
+            - "keypoint_scores" (list): Confidence scores related to the detected keypoints.
+            - "bbox" (list): The bounding box coordinates if available.
+            - "tracker_id" (list): The tracker IDs if available.
         """
         return {
             "n_detections": self.n_detections,
             "confidence": self.confidence.tolist(),
             "keypoints": self.keypoints.tolist(),
             "keypoint_scores": self.keypoint_scores.tolist(),
+            "bbox": self.bbox.tolist() if self.bbox is not None else None,
+            "tracker_id": (
+                self.tracker_id.tolist()
+                if self.tracker_id is not None and len(self.tracker_id) == self.n_detections
+                else None
+            ),
             "_roi_compensated": self._roi_compensated,
         }
 
@@ -591,7 +612,11 @@ class Poses(Result):
             confidence=np.array(data["confidence"], dtype=np.float32),
             keypoints=np.array(data["keypoints"], dtype=np.float32),
             keypoint_scores=np.array(data["keypoint_scores"], dtype=np.float32),
+            bbox=np.array(data["bbox"], dtype=np.float32) if data.get("bbox") is not None else None,
         )
+        tracker_id = data.get("tracker_id")
+        if tracker_id is not None and len(tracker_id) > 0:
+            instance.tracker_id = np.array(tracker_id)
         instance._roi_compensated = data["_roi_compensated"]
         return instance
 
@@ -603,14 +628,14 @@ class Segments(Result):
 
     mask: np.ndarray  #: Mask arrays containing the id for each identified segment.
 
-    def __init__(self, mask: np.ndarray = np.empty((0,))):
-        self.mask = mask.astype(np.int8)
-        self._bbox = None
+    def __init__(self, mask: np.ndarray = np.empty((0,)), _bbox=None, confidence=None, class_id=None):
+        self.mask = mask
+        self._bbox = _bbox
+        self.class_id = class_id
+        self.confidence = confidence
         self.oriented_bboxes = None
         self.instance_masks = None
         self.instance_args = None
-        self.class_id = None
-        self.confidence = None
         self.tracker_id = None
 
         self._roi_compensated = False
@@ -619,12 +644,29 @@ class Segments(Result):
         if roi == (0, 0, 1, 1) or self._roi_compensated:
             return
 
-        # initialize as background values: -1
-        h, w = self.mask.shape
-        new_mask = -np.ones((int(h / roi[3]), int(w / roi[2])), dtype=self.mask.dtype)
-        start_h, start_w = int(roi[1] * h / roi[3]), int(roi[0] * w / roi[2])
-        new_mask[start_h : start_h + h, start_w : start_w + w] = self.mask
-        self.mask = new_mask
+        # initialize as background values and place mask(s) at ROI offset
+        if self.mask.ndim == 3:
+            channels, h, w = self.mask.shape
+            start_h, start_w = int(roi[1] * h / roi[3]), int(roi[0] * w / roi[2])
+            new_masks = np.zeros((channels, int(h / roi[3]), int(w / roi[2])), dtype=self.mask.dtype)
+            new_masks[:, start_h : start_h + h, start_w : start_w + w] = self.mask
+            self.mask = new_masks
+        
+        elif self.mask.ndim == 2:
+            h, w = self.mask.shape
+            start_h, start_w = int(roi[1] * h / roi[3]), int(roi[0] * w / roi[2])
+            new_masks = -np.ones((int(h / roi[3]), int(w / roi[2])), dtype=self.mask.dtype)
+            new_masks[start_h : start_h + h, start_w : start_w + w] = self.mask
+            self.mask = new_masks
+        
+        else:
+            raise ValueError("Mask must be 2D or 3D")
+
+        if self._bbox is not None:
+            self._bbox[:, 0] = roi[0] + self._bbox[:, 0] * roi[2]
+            self._bbox[:, 1] = roi[1] + self._bbox[:, 1] * roi[3]
+            self._bbox[:, 2] = roi[0] + self._bbox[:, 2] * roi[2]
+            self._bbox[:, 3] = roi[1] + self._bbox[:, 3] * roi[3]
 
         self._roi_compensated = True
 
@@ -825,8 +867,9 @@ class Segments(Result):
     def __iter__(self) -> Iterator[Tuple[np.ndarray, float, np.ndarray, int]]:
         for i in range(len(self)):
             yield (
+                self.mask[i] if self.mask is not None else None,
                 self.class_id[i] if self.class_id is not None else None,
-                self.instance_masks[i] if self.instance_masks is not None else None,
+                self.confidence[i] if self.confidence is not None else None,
                 self.bbox[i] if self.bbox is not None else None,
                 self.tracker_id[i] if self.tracker_id is not None else None,
             )
@@ -838,7 +881,54 @@ class Segments(Result):
         Returns:
             A string representation of the Segments object.
         """
-        return f"Segments(n_segments: {self.n_segments}, indeces: {self.indeces}, mask: {self.mask})"
+        s = "Segments("
+        if self.class_id is not None:
+            s += f"class_id:\t {self.class_id}, \tconfidence:\t {self.confidence}, \tbbox_shape: {self.bbox.shape}"
+        if self.tracker_id is not None and self.tracker_id.shape == self.class_id.shape:
+            s += f", \ttrack_ids:\t {self.tracker_id}"
+        if self.mask is not None:
+            s += f"\tmask:\t {self.mask.shape}"
+        return s + ")"
+
+    def __copy__(self):
+        """
+        Returns a copy of the current detections.
+        """
+        new_instance = Segments()
+        new_instance.bbox = np.copy(self.bbox)
+        new_instance.confidence = np.copy(self.confidence)
+        new_instance.class_id = np.copy(self.class_id)
+        new_instance.mask = np.copy(self.mask)
+        new_instance.tracker_id = np.copy(self.tracker_id)
+
+        return new_instance
+
+    def copy(self):
+        """
+        Returns a copy of the current detections.
+        """
+        return self.__copy__()
+
+    def __getitem__(self, index: Union[int, slice, List[int], np.ndarray]) -> "Segments":
+        """
+        Returns a new Segments object with the selected segment detections.
+
+        Args:
+            index: The index or indices of the segment detections to select.
+
+        Returns:
+            A new Segments object with the selected detections.
+        """
+        if isinstance(index, int):
+            index = [index]
+
+        res = self.copy()
+        res.confidence = self.confidence[index]
+        res.class_id = self.class_id[index]
+        res.mask = self.mask[index]
+        res.bbox = self.bbox[index] if self.bbox is not None else None
+        res.tracker_id = self.tracker_id[index] if self.tracker_id is not None else None
+        return res
 
     def json(self) -> dict:
         """
