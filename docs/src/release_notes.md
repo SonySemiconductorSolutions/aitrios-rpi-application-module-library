@@ -6,6 +6,34 @@ sidebar_position: 5
 
 # Release Notes 🚀
 
+## Modlib 1.2.0
+
+### ⭐ **New Features**  
+
+- **AiCamera Device ID**:  
+Enhanced the `AiCamera` class with a new method `get_device_id()` to fetch the device ID.
+Aditional example `device_id.py` to retrieve the unique device ID from the AI Camera.
+- **YOLO Classifier**:  
+Introduced the `yolo-classifier.py` example scripts for enhanced AI model demonstrations.
+- **YOLO Segmentation**:  
+Introduced the `yolo-segment.py` example scripts for enhanced AI model demonstrations.
+- **YOLO detection models in model zoo**:  
+Added Ultralytics YOLOv8n and YOLO11n models to the model zoo.
+
+
+### 🐛 **Bug Fixes**
+
+- Fixed `ROI` class with methods for JSON serialization:
+  - `json()` to convert the ROI to a JSON-serializable dictionary.
+  - `from_json()` to create an ROI from a JSON-serializable dictionary.
+- Modified `Frame` class to ensure proper handling of ROI during JSON conversion.
+
+
+### 📦 **Distribution & Infrastructure**
+
+- Improved unit testing based on recorded scenarios and test cases for better coverage and reliability.
+
+
 ## Modlib 1.1.0
 
 ### 📸 **NEW DEVICE**
