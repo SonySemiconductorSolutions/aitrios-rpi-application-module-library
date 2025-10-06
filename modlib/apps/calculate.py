@@ -31,7 +31,7 @@ class SpeedCalculator:
     Uses bbox centers to calculate the change of distance over time
     For example, calculate the speed of object like:
     ```
-    from unify.apps.calculate import SpeedCalculator
+    from modlib.apps.calculate import SpeedCalculator
 
     region = [(0.49, 0.0), (0.51, 0.0), (0.51, 1.0), (0.49, 1.0)]
     speed = SpeedCalculator(region)
