@@ -203,7 +203,7 @@ class AiCamera(Device):
             req = requests.pop(0)  # possibly more then 1 request in the request buffer to process
 
             # Process information in the libcamera request
-            # And add the frocessed information as a Frame to the frame_queue
+            # And add the processed information as a Frame to the frame_queue
             self._parse_request(req)
 
             req.release()
@@ -352,6 +352,9 @@ class AiCamera(Device):
         self.roi = ROI((x2 - x1) / w1, (y2 - y1) / h1, w2 / w1, h2 / h1)
 
     def start(self):
+        """
+        Start the AiCamera device stream.
+        """
         if self.model is None:
             self.deploy(InputTensorOnly())
 
@@ -359,7 +362,7 @@ class AiCamera(Device):
         self._initiate_roi()
         self._verify_roi()
 
-        # Initiate libcamera config after the model deployement
+        # Initiate libcamera config after the model deployment
         self._initiate(
             frame_rate=self.frame_rate,
             enable_input_tensor=self.enable_input_tensor,
@@ -423,6 +426,9 @@ class AiCamera(Device):
             )
 
     def stop(self):
+        """
+        Stop the AiCamera device stream.
+        """
         atexit.unregister(self.stop)
 
         if self.imx500 is not None:
@@ -526,11 +532,11 @@ class AiCamera(Device):
         # if self._running: # NOTE: unnecessary as you can't adjust while running and verify is called at start()
         #     self._verify_roi()
 
-    # Model deployement
+    # Model deployment
     def prepare_model_for_deployment(self, model: Model, overwrite: Optional[bool] = None) -> str | None:
         """
         Prepares a model for deployment by converting and/or packaging it based on the model type.
-        Behaviour of the deployement depends on model type:
+        Behaviour of the deployment depends on model type:
         - RPK_PACKAGED: The model is already packaged, so the path is returned as is.
         - CONVERTED: The model is a converted file (e.g., packerOut.zip), which must be packaged before deployment.
         - KERAS or ONNX: Framework model files, which must be converted and then packaged.
@@ -643,7 +649,13 @@ class AiCamera(Device):
         self.imx500 = IMX500(os.path.abspath(network_file), camera_id=self.camera_id)
         self.imx500.show_network_fw_progress_bar()
 
-    def get_device_id(self) -> str:
+    def get_device_id(self) -> str | None:
+        """
+        Retrieve the unique IMX500 device ID.
+
+        Returns:
+            The device ID as an ASCII string if successful, otherwise None.
+        """
         return self.imx500.get_device_id()
 
     @staticmethod
@@ -691,12 +703,19 @@ class AiCamera(Device):
         with self._frameslock:
             while not self._frames:
                 self._frame_ready.wait()  # Wait for available frame
-            frame = self._frames.pop(-1)
-            if self._frames:
-                logger.debug(f"Main thread is dropping {len(self._frames)} frames.")
-                self._frames.clear()
 
-        self.fps.update()
+            # We only allow the main thread to pop and clear the frame buffer
+            # Calling get_frame() from a thread other than the main thread is allowed and
+            # returns the last frame in the buffer for processing
+            if threading.current_thread() is threading.main_thread():
+                frame = self._frames.pop(-1)
+                if self._frames:
+                    logger.debug(f"Main thread is dropping {len(self._frames)} frames.")
+                    self._frames.clear()
+                self.fps.update()
+            else:
+                frame = self._frames[-1]
+
         return frame
 
     def __next__(self) -> Frame:

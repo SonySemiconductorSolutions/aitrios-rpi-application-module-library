@@ -66,7 +66,7 @@ class IMX500Converter:
             model_type: Model type of the provided model to be converted.
             output_dir: The directory where the converted `packerOut.zip` file will be saved.
             overwrite: If None, prompts the user for input. If True, overwrites the output directory if it exists.
-                If False, aborts if the directory exists.
+                If False, terminates the conversion/packaging process if the directory exists.
         """
         if not os.path.isfile(model_file):
             raise FileNotFoundError(f"The model file '{model_file}' does not exist.")
@@ -94,7 +94,7 @@ class IMX500Converter:
                     The given output directory '{output_dir}' already contains a `packerOut.zip` file.
                     1. Type 'yes/y' to recompile and overwrite the existing packerOut.zip file
                     2. Press <Enter> to use the already existing packerOut.zip file
-                    3. Press 'no/n' to abort
+                    3. Press 'no/n' to terminate the conversion process
                     Choice (y/<Enter>/n): """
                 )
             else:
@@ -106,7 +106,7 @@ class IMX500Converter:
                 sys.exit()
 
             if user_input.lower() not in ("yes", "y"):
-                logger.info("Model conversion aborted.")
+                logger.info("Model conversion terminated.")
                 return
 
             flag = "--overwrite-output"

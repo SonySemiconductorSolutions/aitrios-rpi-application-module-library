@@ -22,7 +22,7 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
-from .results import Anomaly, Classifications, Detections, Poses, Segments
+from .results import Anomaly, Classifications, Detections, Poses, Segments, InstanceSegments
 
 
 @dataclass
@@ -103,7 +103,7 @@ class Model(ABC):
     @abstractmethod
     def post_process(
         self, output_tensors: List[np.ndarray]
-    ) -> Union[Classifications, Detections, Poses, Segments, Anomaly]:
+    ) -> Union[Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly]:
         """
         Perform post-processing on the tensor data and tensor layout.
 
@@ -111,14 +111,14 @@ class Model(ABC):
             output_tensors: Resulting output tensors to be processed.
 
         Returns:
-            The post-processed detections.
+            The post-processed result.
         """
         pass
 
     def pre_process(self, image: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Optional pre-processing function the model requires for the input image.
-        The pre-processing function is mimicing the SPI camera functionality,
+        The pre-processing function is mimicking the SPI camera functionality,
         and is only used for data-injection and on Interpreter devices.
 
         Args:
@@ -184,8 +184,7 @@ class Model(ABC):
         else:
             raise ValueError(f"Parsing network info for type {self.model_type}, not supported")
 
-    @staticmethod
-    def __get_network_info_rpk(network_filename):
+    def __get_network_info_rpk(self, network_filename):
         import io
         import struct
 
@@ -269,9 +268,16 @@ class Model(ABC):
             raise RuntimeError("Insufficient networkNum settings in network_info.txt")
         info["network_info"] = res
         # Extract some input tensor config params
+        input_format = info["network_info"]["network"][0]["inputTensorFormat"]
+        if input_format != self.color_format:
+            raise ValueError(
+                f"""
+                Provided color format ({self.color_format}) does not match the color format found in the packaged rpk file ({input_format}).
+                Please apply the correct color format when packaging the model or defining the COLOR_FORMAT of the Model.
+                """
+            )
         info["input_tensor"]["width"] = int(res["network"][0]["inputTensorWidth"])
         info["input_tensor"]["height"] = int(res["network"][0]["inputTensorHeight"])
-        input_format = info["network_info"]["network"][0]["inputTensorFormat"]
         inputTensorNorm_K03 = int(info["network_info"]["network"][0]["inputTensorNorm_K03"], 0)
         inputTensorNorm_K13 = int(info["network_info"]["network"][0]["inputTensorNorm_K13"], 0)
         inputTensorNorm_K23 = int(info["network_info"]["network"][0]["inputTensorNorm_K23"], 0)

@@ -3,7 +3,7 @@ import numpy as np
 
 from modlib.models.results import Detections
 from modlib.devices.frame import Frame
-from typing import Tuple
+from typing import Tuple, List
 
 
 class Motion:
@@ -23,42 +23,59 @@ class Motion:
     ```
     """
 
-    size_threshold: int
-    motion_threshold: int
+    size_threshold: int  #: Minimum size of detected motion to be considered significant. Default is 300.
+    motion_threshold: int  #: Minimum threshold for motion detection. Default is 20.
 
     def __init__(self, size_threshold: int = 300, motion_threshold: int = 20):
+        """
+        Initializes the Motion class with thresholds for size and motion detection.
+
+        Args:
+            size_threshold: Minimum size of detected motion to be considered significant. Default is 300.
+            motion_threshold: Minimum threshold for motion detection. Default is 20.
+
+        Example:
+            ```python
+            motion = Motion()
+            ```
+        """
         self.constant_motion = 0
         self.image_IDs = []
         self.previous_frame = []
         self.size_threshold = size_threshold
         self.motion_threshold = motion_threshold
 
-    def detect(self, frame: Frame):
+    def detect(self, frame: Frame) -> List[Tuple[int, int, int, int]]:
         """
-        detects motion from current frame and previous frame.
+        Detects motion from the current frame compared to the previous frame.
 
         Args:
-            frame: the current frame
+            frame: The current frame to analyze for motion.
 
         Returns:
-            returns bboxes of motion
+            A list of bounding boxes representing detected motion.
+
+        Example:
+            ```python
+            motion_bboxes = motion.detect(frame)
         """
         gray_frame = cv2.cvtColor(frame.image, cv2.COLOR_BGR2GRAY)
         if len(self.previous_frame) <= 0:
             self.previous_frame = gray_frame
         frame_diff = cv2.subtract(gray_frame, self.previous_frame)
-        contours = self.capture_contours(frame_diff)  # Create change in motion image
+        contours = self.__capture_contours(frame_diff)  # Create change in motion image
 
-        motion_bboxes = self.motion_bboxes(contours, frame.width, frame.height)
+        motion_bboxes = self.__motion_bboxes(contours, frame.width, frame.height)
         self.previous_frame = gray_frame
         return motion_bboxes
 
-    def capture_contours(self, frame_diff: np.ndarray):
+    def __capture_contours(self, frame_diff: np.ndarray) -> List[np.ndarray]:
         """
-        Takes a grayscale image and uses image techniques to enhance egdes in the image and find the contours
+        Takes a grayscale image and uses image techniques to enhance edges in the image and find the contours
 
         Args:
             frame_diff: subtracted frame of previous and current frames
+
         Returns:
             masks of contours of detected motion
         """
@@ -75,7 +92,7 @@ class Motion:
         )  # finds the line contours and returns lsit of masks
         return cnts
 
-    def motion_bboxes(self, contours: Tuple, width: int, height: int):
+    def __motion_bboxes(self, contours: Tuple, width: int, height: int) -> Detections:
         """
         Calculates the bboxes from contour masks and filters out small changes.
 
@@ -83,6 +100,7 @@ class Motion:
             contours: contains the masks of motion detected
             width: width of
             height: height of Frame
+
         Returns:
             Detections of motion bboxes that can be used in other Modules
         """
@@ -96,7 +114,7 @@ class Motion:
         if len(bbox_conts) != 0:
             bboxes = bbox_conts[:, :4]
             scores = bbox_conts[:, -1]
-            bbox_conts = self.non_max_suppression(bboxes, scores, 0.1)
+            bbox_conts = self.__non_max_suppression(bboxes, scores, 0.1)
             if sum(scores) > self.size_threshold * 5:  # check for motion but no detections
                 self.constant_motion += 1
             else:
@@ -116,7 +134,7 @@ class Motion:
             bbox=np.array(bbox_conts), confidence=np.ones(len(bbox_conts)), class_id=np.empty(len(bbox_conts))
         )
 
-    def non_max_suppression(self, bboxes: np.ndarray, scores: np.ndarray, threshold: float = 1e-1):
+    def __non_max_suppression(self, bboxes: np.ndarray, scores: np.ndarray, threshold: float = 1e-1) -> np.ndarray:
         """
         Post processing technique to combine overlapping motion detections
         into relevant detected motion.
@@ -125,6 +143,7 @@ class Motion:
             bboxes: array of bboxes
             scores: array of confidence score of the bboxes
             threshold: minimum threshold of the size of bboxes
+
         Returns:
             filtered array of bboxes
         """

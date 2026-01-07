@@ -51,6 +51,7 @@ if arena_sdk_found
     message('Arena SDK root: ' + arena_sdk_root_abs)
     message('Arena SDK root rel: ' + arena_sdk_root_rel)
 
+    threads_dep = dependency('threads', required: true)
     openssl_dep = dependency('openssl', required: true, method: 'auto')
     if not openssl_dep.found()
         error('OpenSSL not found')
@@ -99,11 +100,7 @@ if arena_sdk_found
             '-llucidlog'
         ]
 
-        other_libs = [
-            '-lpthread',
-        ]
-
-        link_args = ld_flags + genicam_libs + ffmpeg_libs + arena_libs + other_libs
+        link_args = ld_flags + genicam_libs + ffmpeg_libs + arena_libs
         compile_args = ['-Wall', '-g', '-O2', '-Wno-unknown-pragmas', '-fPIC']
     
     elif os == 'windows'
@@ -165,7 +162,7 @@ if arena_sdk_found
         include_directories: includes,
         link_args: link_args,
         compile_args: compile_args + ['-DARENA_SDK_FOUND'],
-        dependencies: [openssl_dep]
+        dependencies: [threads_dep, openssl_dep]
     )
 else
     # When Arena SDK is not found, create an empty dependency

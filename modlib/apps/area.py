@@ -41,6 +41,14 @@ class Area:
     points: List[Tuple[float, float]]  #: Points defining the polygon area e.g. [(x1, y1), (x2, y2), ...]
 
     def __init__(self, points: List[Tuple[float, float]]):
+        """
+        Initializes an Area instance with the given polygon points.
+
+        Args:
+            points: A list of points defining the polygon, where each point is normalized to the range [0, 1] relative to the frame dimensions.
+        Raises:
+            ValueError: If any point is out of bounds, fewer than 3 points are provided, or the points form a self-intersecting polygon.
+        """
         for x, y in points:
             if not (0 <= x <= 1 and 0 <= y <= 1):
                 raise ValueError(
@@ -58,13 +66,18 @@ class Area:
 
     def contains(self, detections: Detections) -> List[bool]:
         """
-        Checks to see if bbox Detections are in defined area
+        Checks whether the center of each detection's bounding box is inside the polygon.
 
         Args:
-            detections: The set of Detections to check if the are in defined area.
+            detections: A set of detections containing bounding boxes, must be of type `Detections`, `Poses`, or `Segments` from `modlib.models.results`.
 
         Returns:
-            The mask of detections that are in the current area.
+            A list of boolean values indicating whether each detection is inside the polygon.
+
+        Example:
+            ```python
+            in_area = detections[area.contains(detections)]
+            ```
         """
         mask = []
         for box in detections.bbox:
@@ -82,11 +95,18 @@ class Area:
         Calculate the proportion of anomaly pixels within this area's polygon.
 
         Args:
-            anomaly_mask (np.ndarray): A 2D array where non-zero values indicate anomalies.
+            anomaly_mask: A 2D array where non-zero values indicate anomalies.
 
         Returns:
-            float: A value between 0 and 1 indicating the density of anomalies
-                   within the polygon. Returns 0.0 if the polygon has zero area.
+            A value between 0 and 1 indicating the density of anomalies
+            within the polygon. Returns 0.0 if the polygon has zero area.
+        Raises:
+            ValueError: If the anomaly mask is not a 3D array.
+
+        Example:
+            ```python
+            density = area.anomaly_density(anomaly_mask)
+            ```
         """
         if len(anomaly_mask.shape) != 3:
             raise ValueError("anomaly_mask must be a 3D array")
@@ -114,6 +134,14 @@ class Area:
     def to_dict(self) -> dict:
         """
         Converts the Area instance to a dictionary representation.
+
+        Returns:
+            A dictionary containing the type and points of the polygon.
+
+        Example:
+            ```python
+            area_dict = area.to_dict()
+            ```
         """
         points_list = self.points.tolist()
         return {"type": "Area", "points": points_list}
@@ -122,6 +150,12 @@ class Area:
     def from_dict(data: dict) -> "Area":
         """
         Creates an Area instance from a dictionary representation.
+
+        Args:
+            data: A dictionary containing "points" key.
+
+        Returns:
+            An Area instance created from the provided "points" in the dictionary.
         """
         return Area(points=data["points"])
 

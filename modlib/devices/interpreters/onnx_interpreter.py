@@ -133,7 +133,7 @@ class ONNXInterpreter(Device):
 
         if self.model:
             # NOTE: It might be possible to avoid forcing model.pre_process to return input_tensor_image
-            # But one needs to compensate for the padding that might happen in the proposser when visualizing
+            # But one needs to compensate for the padding that might happen in the proposer when visualizing
             # the detections on top of the original input_frame from source (to be investigated)
 
             image, input_tensor = self.model.pre_process(input_frame)
@@ -185,7 +185,7 @@ class ONNXInterpreter(Device):
             import mct_quantizers as mctq
             import onnxruntime
 
-            # The following line is needed to nake nms_ort available for onnxruntime.InferenceSession
+            # The following line is needed to make nms_ort available for onnxruntime.InferenceSession
             from sony_custom_layers.pytorch.object_detection import nms_ort  # noqa
 
             model = onnxruntime.InferenceSession(

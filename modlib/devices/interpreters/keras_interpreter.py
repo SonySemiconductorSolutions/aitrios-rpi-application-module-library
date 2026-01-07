@@ -132,7 +132,7 @@ class KerasInterpreter(Device):
 
         if self.model:
             # NOTE: It might be possible to avoid forcing model.pre_process to return input_tensor_image
-            # But one needs to compensate for the padding that might happen in the proposser when visualizing
+            # But one needs to compensate for the padding that might happen in the proposer when visualizing
             # the detections on top of the original input_frame from source (to be investigated)
 
             image, input_tensor = self.model.pre_process(input_frame)

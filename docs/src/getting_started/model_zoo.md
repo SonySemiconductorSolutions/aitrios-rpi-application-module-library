@@ -138,6 +138,8 @@ with device as stream:
 | EfficientDetLite0           | pp_od_efficientdet_lite0 | RGB          | True                  | [imx500_network_efficientdet_lite0_pp.rpk](https://github.com/raspberrypi/imx500-models/raw/main/imx500_network_efficientdet_lite0_pp.rpk)      |
 | NanoDetPlus416x416          | pp_od_bscn               | BGR          | False                 | [imx500_network_nanodet_plus_416x416_pp.rpk](https://github.com/raspberrypi/imx500-models/raw/main/imx500_network_nanodet_plus_416x416_pp.rpk)    |
 | SSDMobileNetV2FPNLite320x320| pp_od_bscn               | RGB          | False                 | [imx500_network_ssd_mobilenetv2_fpnlite_320x320_pp.rpk](https://github.com/raspberrypi/imx500-models/raw/main/imx500_network_ssd_mobilenetv2_fpnlite_320x320_pp.rpk) |
+| YOLOv8n                     | pp_od_yolo_ultralytics   | RGB          | False                 | [imx500_network_yolov8n_pp.rpk](https://github.com/raspberrypi/imx500-models/raw/main/imx500_network_yolov8n_pp.rpk)    |
+| YOLO11n                     | pp_od_yolo_ultralytics   | RGB          | False                 | [imx500_network_yolo11n_pp.rpk](https://github.com/raspberrypi/imx500-models/raw/main/imx500_network_yolo11n_pp.rpk)    |
 
 ## Segmentation Models
 
@@ -149,8 +151,8 @@ with device as stream:
 
 | network_name  | post_processor | color_format | preserve_aspect_ratio | network                                                                                       |
 |---------------|----------------|--------------|-----------------------|-----------------------------------------------------------------------------------------------|
-| Posenet | pp_posenet     | RGB          | False                 | [imx500_network_posenet.rpk](https://github.com/raspberrypi/imx500-models/raw/main/imx500_network_posenet.rpk)|
-| Higherhrnet | pp_higherhrnet     | RGB          | False                 | [imx500_network_higherhrnet_coco.rpk](https://github.com/raspberrypi/imx500-models/raw/main/imx500_network_higherhrnet_coco.rpk)|
+| Posenet       | pp_posenet     | RGB          | False                 | [imx500_network_posenet.rpk](https://github.com/raspberrypi/imx500-models/raw/main/imx500_network_posenet.rpk)|
+| HigherHRNet   | pp_higherhrnet | RGB          | False                 | [imx500_network_higherhrnet_coco.rpk](https://github.com/raspberrypi/imx500-models/raw/main/imx500_network_higherhrnet_coco.rpk)|
 
 <br />
 <br />

@@ -29,7 +29,7 @@ arch=$(uname -m)
 # Check if architecture is supported
 if [[ "$arch" == "x86_64" ]]; then
   echo "✅ Running on x86_64 (64-bit Intel/AMD)"
-  ARENA_SDK_VERSION="v0.1.95"
+  ARENA_SDK_VERSION="v0.1.104"
   ARCH="x64"
 elif [[ "$arch" == "aarch64" ]]; then
   echo "✅ Running on ARM64 (aarch64)"
@@ -57,6 +57,7 @@ MOD_CONF_FILE="Arena_SDK_${ARCH}_modified.conf"
 dnf update -y
 sed 's/sh -c "\(.*\)"/\1/g' ${OG_CONF_FILE} > ${MOD_CONF_FILE}
 sed -i 's/sudo apt-get -y install libibverbs1 librdmacm1/dnf -y install libibverbs librdmacm/g' ${MOD_CONF_FILE}
+sed -i 's/^sudo //g' ${MOD_CONF_FILE}
 source ${MOD_CONF_FILE}
 
 # Verify installation by checking if libarenac.so is installed in the correct location

@@ -25,8 +25,6 @@ System requirements (LUCID Arena compatible device as stated by the [Arena SDK d
 
 ### 2) Verify your setup
 
-Required Python version: 3.11
-
 If you haven't already done so, make sure to install modlib (in your virtual environment).  
 (Optional) Create and enable a virtual environment.  
 
@@ -37,12 +35,8 @@ source .venv/bin/activate
 
 One can use pip to install the library in your project Python environment.
 ```shell
-pip install git+https://github.com/SonySemiconductorSolutions/aitrios-rpi-application-module-library.git
+pip install modlib
 ```
-
-:::warning  
-We are currently working on publishing modlib to the PyPI index. This will make it easier for developers to install and manage the library using pip and allow for a more streamlined setup process. Stay tuned for updates!
-:::
 
 Let's verify that our camera is connected and the Application Module Library is installed correctly.  
 Create a new Python file named `test_connection.py`. and run the following code to see a camera preview.
@@ -80,7 +74,7 @@ Incorrect outputoutput:
 Standard exception thrown: 
 terminate called after throwing an instance of 'std::runtime_error'
   what():  deviceInfos.size() == 0, no device connected
-Aborted
+Terminated
 ```
 Check the network settings for your network card: IPv4 should be set to Manual, Address: 169.254.0.1, Netmask: 255.255.0.0
 

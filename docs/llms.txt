@@ -1,0 +1,1956 @@
+# Application Module Library (modlib)
+> Auto-generated llms.txt file for modlib
+
+## Purpose
+This file provides instructions for Large Language Models (LLMs) on how to use the `aitrios-rpi-application-module-library-dev` library to interact with devices, models, and application modules for building applications.
+
+---
+
+## Overview
+The library is designed to facilitate the development of applications by providing tools to:
+- Interact with devices.
+- Process and manage models.
+- Annotate frames for visualization.
+
+It includes detailed documentation, examples, and reusable modules to simplify application development.
+
+---
+## Docs
+### Modules Overview
+#### modlib.apps Modules
+##### Annotator Module
+    - File: .venv/lib/python3.11/site-packages/modlib/apps/annotate.py
+    - Purpose: Provides utility methods for annotating the frame with the provided image and corresponding detections.
+- **Attributes**:
+    - color: Union[Color, ColorPalette] - The color to draw the bounding box, can be a single color or a color palette.
+    - text_padding: int - The padding around the text on the bounding box, default is 10.
+    - text_scale: float - The scale of the text on the bounding box, default is 0.5.
+    - text_thickness: int - The thickness of the text on the bounding box, default is 1.
+    - thickness: int - The thickness of the bounding box lines, default is 2.
+- **Example Usage**:
+    ```python
+    from modlib.apps import Annotator, Area
+    from modlib.devices import AiCamera
+    from modlib.models.zoo import SSDMobileNetV2FPNLite320x320
+    
+    device = AiCamera()
+    model = SSDMobileNetV2FPNLite320x320()
+    device.deploy(model)
+    
+    annotator = Annotator(thickness=2, text_thickness=1, text_scale=0.4)
+    
+    areas = [
+        Area(points=[[0.1, 0.1], [0.1, 0.9], [0.4, 0.9], [0.4, 0.1]]),  # area 1
+        Area(points=[[0.6, 0.2], [0.8, 0.1], [0.9, 0.4], [0.8, 0.8], [0.6, 0.7]]),  # area 2
+    ]
+    
+    with device as stream:
+        for frame in stream:
+            detections = frame.detections[frame.detections.confidence > 0.55]
+            detections = detections[detections.class_id == 0]  # Person
+    
+            for area in areas:
+                d = detections[area.contains(detections)]
+                color = (0, 255, 0) if len(d) > 0 else (0, 0, 255)
+                annotator.annotate_area(frame, area=area, color=color, label=f"Count: {len(d)}", alpha=0.2)
+    
+            labels = [f"#{model.labels[c]}: {s:0.2f}" for _, s, c, _ in detections]
+            annotator.annotate_boxes(frame, detections, labels=labels, alpha=0.2)
+            frame.display()
+    ```
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize self.  See help(type(self)) for accurate signature.
+        - Args:
+            color: Union[Color, ColorPalette] - The color to draw the bounding box, can be a single color or a color palette.
+            thickness: int - The thickness of the bounding box lines, default is 2.
+            text_scale: float - The scale of the text on the bounding box, default is 0.5.
+            text_thickness: int - The thickness of the text on the bounding box, default is 1.
+            text_padding: int - The padding around the text on the bounding box, default is 10.
+
+    - **`annotate_area`**: (Method)
+        - Purpose: Draws a shape on the frame using the area containing points.
+        - Args:
+            frame: Frame - The frame to annotate, must be of type `Frame` from `modlib.devices`.
+            area: Area - The area to draw, must be of type `Area` from `modlib.apps`.
+            color: Tuple[int, int, int] - BGR color for the area.
+            label: Optional[str] - The text to display on the area.
+            alpha: float - Transparency of the area fill, between 0.0 and 1.0. Defaults to 0.5.
+        - Returns: np.ndarray
+            The annotated frame image.
+        
+        - Example:
+            ```python
+            annotator.annotate_area(frame, area, color=(0, 255, 0), alpha=0.5)
+            ```
+    - **`annotate_boxes`**: (Method)
+        - Purpose: Draws bounding boxes on the frame using the detections provided.
+        - Args:
+            frame: Frame - The frame to annotate, must be of type `Frame` from `modlib.devices`.
+            detections: Detections - The detections to draw bounding boxes for, must be of type `Detections`, `Poses`, or `Segments` from `modlib.models.results`.
+            labels: Optional[List[str]] - A list of labels for each detection. Defaults to `None`, in which case `class_id` is used.
+            skip_label: bool - Whether to skip drawing labels on the bounding boxes. Defaults to `False`.
+            color: Union[Color, ColorPalette] - RGB color for bounding box edges and fill. Defaults to `None`.
+            alpha: float - Transparency of the bounding box fill, between 0.0 and 1.0. Defaults to 0.5.
+            corner_radius: int - Radius of the corners of the bounding boxes. Defaults to 0.
+            corner_length: int - Length of the corners if `corner_radius` is 0. Defaults to 10.
+        - Returns: np.ndarray
+            The annotated frame image.
+        
+        - Example:
+            ```python
+            annotator.annotate_boxes(frame, detections, labels=["Person", "Car"], alpha=0.7)
+            ```
+    - **`annotate_instance_segments`**: (Method)
+        - Purpose: Draws instance segmentation areas on the frame using the provided instance segments.
+        - Args:
+            frame: Frame - The frame to annotate, must be of type `Frame` from `modlib.devices`.
+            instance_segments: InstanceSegments - The instance segments defining the areas to draw, must be of type `InstanceSegments` from `modlib.models.results`.
+        - Returns: np.ndarray
+            The annotated frame.image
+    - **`annotate_keypoints`**: (Method)
+        - Purpose: Draws the skeletons on the frame using the provided poses.
+        - Args:
+            frame: Frame - The frame to annotate, must be of type `Frame` from `modlib.devices`.
+            poses: Poses - The detections defining the skeletons that will be drawn on the image, must be of type `Poses` from `modlib.models.results`.
+            num_keypoints: int - The number of unique keypoints in the poses object.
+            skeleton: List[Tuple[int, int]] - Edges between the keypoints that make up the skeleton to annotate. Defaults to `None`.
+            keypoint_radius: Optional[int] - The radius of the keypoints to be drawn. Defaults to 3.
+            keypoint_color: Optional[Color] - The color of the keypoints. Defaults to green `(0, 255, 0)`.
+            line_color: Optional[Color] - The color of the lines connecting keypoints. Defaults to yellow `(255, 255, 0)`.
+            keypoint_score_threshold: Optional[float] - The minimum score threshold for keypoints to be drawn. Keypoints with a score below this threshold will not be drawn. Defaults to 0.5.
+        - Returns: np.ndarray
+            The annotated frame image.
+        
+        - Example:
+            ```python
+            frame.image = annotator.annotate_keypoints(frame=frame, poses=poses)
+            ```
+    - **`annotate_oriented_boxes`**: (Method)
+        - Purpose: Draws orientated bounding boxes on the frame using the detections provided.
+        - Args:
+            frame: Frame - The frame to annotate, must be of type `Frame` from `modlib.devices`.
+            instance_segments: InstanceSegments - The oriented bounding box data, must be of type `InstanceSegments` from `modlib.models.results`.
+            labels: Optional[List[str]] - A list of labels for each detection. Defaults to `None`, in which case `class_id` is used.
+            skip_label: bool - Whether to skip drawing labels on the bounding boxes. Defaults to `False`.
+            color: Union[Color, ColorPalette] - RGB color for bounding box edges and fill. Defaults to `None`.
+        - Returns: np.ndarray
+            The annotated frame.image with orientated bounding boxes.
+    - **`annotate_segments`**: (Method)
+        - Purpose: Draws segmentation areas on the frame using the provided segments. 
+        - Args:
+            frame: Frame - The frame to annotate, must be of type `Frame` from `modlib.devices`.
+            segments: Segments - The segments defining the areas that will be drawn on the image, must be of type `Segments` from `modlib.models.results`.
+        - Returns: np.ndarray
+            The annotated frame image.
+        
+        - Example:
+            ```python
+            annotator.annotate_segments(frame, segments)
+            ```
+    - **`crop`**: (Method)
+        - Purpose: Crop a rectangular region from an image.
+        - Args:
+            image: np.ndarray - The input image as a NumPy array.
+            x1: int - The x-coordinate of the top-left corner of the crop.
+            y1: int - The y-coordinate of the top-left corner of the crop.
+            x2: int - The x-coordinate of the bottom-right corner of the crop.
+            y2: int - The y-coordinate of the bottom-right corner of the crop.
+        - Returns: np.ndarray
+            The cropped region of the image.
+        
+        - Example:
+            ```python
+            cropped_image = annotator.crop(frame.image, x1=50, y1=50, x2=200, y2=200)
+            ```
+    - **`rounded_rectangle`**: (Method)
+        - Purpose: Draws a rectangle with possible rounded edges and infill.
+        - Args:
+            image: np.ndarray - The input image as a NumPy array.
+            x1: int - X-coordinate of the top-left corner of the rectangle.
+            y1: int - Y-coordinate of the top-left corner of the rectangle.
+            x2: int - X-coordinate of the bottom-right corner of the rectangle.
+            y2: int - Y-coordinate of the bottom-right corner of the rectangle.
+            color: Tuple[int, int, int] - BGR color for bounding box edges and fill.
+            thickness: int - Thickness of the rectangle edges. Defaults to 2.
+            alpha: float - Transparency of the rectangle fill, between 0.0 and 1.0. Defaults to 0.5.
+            corner_radius: int - Radius of the rectangle corners. Defaults to 5.
+            corner_length: int - Length of the rectangle corners if `corner_radius` is 0. Defaults to 10.
+
+    - **`set_label`**: (Method)
+        - Purpose: Draws text labels on the frame with background using the provided text and position.
+        - Args:
+            image: np.ndarray - The image to annotate, must be a NumPy array.
+            x: int - X-coordinate for the label position.
+            y: int - Y-coordinate for the label position.
+            color: Tuple[int, int, int] - BGR color for the label background.
+            label: str - The text to display.
+
+##### Area Module
+    - File: .venv/lib/python3.11/site-packages/modlib/apps/area.py
+    - Purpose: Represents a polygonal area defined by a list of points.
+    Where one point (x, y) is the relative distance w.r.t. the width and height of the frame.
+- **Attributes**:
+    - points: List[Tuple[float, float]] - Points defining the polygon area e.g. [(x1, y1), (x2, y2), ...]
+- **Example Usage**:
+    ```python
+    from modlib.apps import Annotator, Area
+    from modlib.devices import AiCamera
+    from modlib.models.zoo import SSDMobileNetV2FPNLite320x320
+    
+    device = AiCamera()
+    model = SSDMobileNetV2FPNLite320x320()
+    device.deploy(model)
+    
+    annotator = Annotator(thickness=2, text_thickness=1, text_scale=0.4)
+    
+    areas = [
+        Area(points=[[0.1, 0.1], [0.1, 0.9], [0.4, 0.9], [0.4, 0.1]]),  # area 1
+        Area(points=[[0.6, 0.2], [0.8, 0.1], [0.9, 0.4], [0.8, 0.8], [0.6, 0.7]]),  # area 2
+    ]
+    
+    with device as stream:
+        for frame in stream:
+            detections = frame.detections[frame.detections.confidence > 0.55]
+            detections = detections[detections.class_id == 0]  # Person
+    
+            for area in areas:
+                d = detections[area.contains(detections)]
+                color = (0, 255, 0) if len(d) > 0 else (0, 0, 255)
+                annotator.annotate_area(frame, area=area, color=color, label=f"Count: {len(d)}", alpha=0.2)
+    
+            labels = [f"#{model.labels[c]}: {s:0.2f}" for _, s, c, _ in detections]
+            annotator.annotate_boxes(frame, detections, labels=labels, alpha=0.2)
+            frame.display()
+    ```
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initializes an Area instance with the given polygon points.
+        - Args:
+            points: typing.List[typing.Tuple[float, float]] - Points defining the polygon area e.g. [(x1, y1), (x2, y2), ...]
+
+    - **`anomaly_density`**: (Method)
+        - Purpose: Calculate the proportion of anomaly pixels within this area's polygon.
+        - Args:
+            anomaly_mask: <class 'numpy.ndarray'> - A 2D array where non-zero values indicate anomalies.
+        - Returns: <class 'float'>
+            A value between 0 and 1 indicating the density of anomalies
+            within the polygon. Returns 0.0 if the polygon has zero area.
+        Raises:
+            ValueError: If the anomaly mask is not a 3D array.
+        
+        - Example:
+            ```python
+            density = area.anomaly_density(anomaly_mask)
+            ```
+    - **`contains`**: (Method)
+        - Purpose: Checks whether the center of each detection's bounding box is inside the polygon.
+        - Args:
+            detections: <class 'modlib.models.results.Detections'> - A set of detections containing bounding boxes, must be of type `Detections`, `Poses`, or `Segments` from `modlib.models.results`.
+        - Returns: typing.List[bool]
+            A list of boolean values indicating whether each detection is inside the polygon.
+        
+        - Example:
+            ```python
+            in_area = detections[area.contains(detections)]
+            ```
+    - **`from_dict`**: (Method)
+        - Purpose: Creates an Area instance from a dictionary representation.
+        - Args:
+            data: <class 'dict'> - A dictionary containing "points" key.
+        - Returns: Area
+            An Area instance created from the provided "points" in the dictionary.
+    - **`to_dict`**: (Method)
+        - Purpose: Converts the Area instance to a dictionary representation.
+##### BYTETracker Module
+    - File: .venv/lib/python3.11/site-packages/modlib/apps/tracker/byte_tracker.py
+    - Purpose: Provides tracking ids to detections by looking at the movement of bboxes over time
+- **Example Usage**:
+    ```python
+    from modlib.apps import Annotator, BYTETracker, ObjectCounter
+    from modlib.devices import AiCamera
+    from modlib.models.zoo import SSDMobileNetV2FPNLite320x320
+    
+    
+    class BYTETrackerArgs:
+        track_thresh: float = 0.25
+        track_buffer: int = 30
+        match_thresh: float = 0.8
+        aspect_ratio_thresh: float = 3.0
+        min_box_area: float = 1.0
+        mot20: bool = False
+    
+    
+    device = AiCamera()
+    model = SSDMobileNetV2FPNLite320x320()
+    device.deploy(model)
+    
+    tracker = BYTETracker(BYTETrackerArgs())
+    people_counter = ObjectCounter()
+    annotator = Annotator(thickness=1, text_thickness=1, text_scale=0.4)
+    
+    with device as stream:
+        for frame in stream:
+            detections = frame.detections[frame.detections.confidence > 0.55]
+            detections = detections[detections.class_id == 0]  # Person
+            detections = tracker.update(frame, detections)
+    
+            people_counter.update(detections)
+            annotator.set_label(
+                image=frame.image,
+                x=430,
+                y=30,
+                color=(200, 200, 200),
+                label="Total people detected " + str(people_counter.get(0)),
+            )
+    
+            labels = [f"#{t} {model.labels[c]}: {s:0.2f}" for _, s, c, t in detections]
+            annotator.annotate_boxes(frame=frame, detections=detections, labels=labels)
+    
+            frame.display()
+    ```
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialise the tracker providing the BYTETrackerArgs.
+
+    - **`update`**: (Method)
+        - Purpose: BYTETracker update functionality responsible for tracking of objects across frames.
+        It updates the given detection with a unique tracker ID.
+        - Args:
+            frame: <class 'modlib.devices.frame.Frame'> - The frame corresponding to the given detections.
+            detections: <class 'modlib.models.results.Detections'> - The detections for which to add the `tracker_id`'s.
+        - Returns: <class 'modlib.models.results.Detections'>
+            The updated detections including tracklets.
+##### Color Module
+    - File: .venv/lib/python3.11/site-packages/modlib/apps/annotate.py
+    - Purpose: Represents a color in RGB format. Used for specifying colors in annotations.
+- **Attributes**:
+    - b: int - Blue channel.
+    - g: int - Green channel.
+    - r: int - Red channel.
+- **Example Usage**:
+    ```python
+    import cv2
+    import numpy as np
+    
+    from modlib.apps import Annotator, ColorPalette
+    from modlib.apps.calculate import calculate_distance_matrix
+    from modlib.devices import AiCamera
+    from modlib.models.zoo import NanoDetPlus416x416
+    
+    model = NanoDetPlus416x416()
+    device = AiCamera()
+    device.deploy(model)
+    
+    annotator = Annotator(color=ColorPalette.default(), thickness=1, text_thickness=1, text_scale=0.4)
+    
+    with device as stream:
+        for frame in stream:
+            detections = frame.detections[frame.detections.confidence > 0.50]
+    
+            # Calculate distance matrix
+            xc, yc = detections.center_points
+            xc, yc = xc * frame.width, yc * frame.height
+            dist_matrix = calculate_distance_matrix(xc, yc)
+    
+            # Display distance to each objects
+            indices = np.triu_indices(len(xc), k=1)
+            for i, j in zip(*indices):
+                dist = dist_matrix[i, j]
+                p1 = (int(xc[i]), int(yc[i]))
+                p2 = (int(xc[j]), int(yc[j]))
+    
+                cv2.line(frame.image, p1, p2, (255, 255, 255), 1)
+                cv2.putText(frame.image, f"{dist:.1f}", ((p1[0] + p2[0]) // 2, (p1[1] + p2[1]) // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2, )
+    
+            labels = [f"{model.labels[class_id]}: {score:0.2f}" for _, score, class_id, _ in detections]
+            frame.image = annotator.annotate_boxes(frame=frame, detections=detections, labels=labels)
+    
+            frame.display()
+    ```
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize a color in RGB format. Used for specifying colors in annotations.
+        - Args:
+            r: int - Red channel.
+            g: int - Green channel.
+            b: int - Blue channel.
+
+    - **`as_bgr`**: (Method)
+        - Purpose: Returns the color as a BGR tuple.
+    - **`as_rgb`**: (Method)
+        - Purpose: Returns the color as an RGB tuple.
+    - **`contrast_color`**: (Method)
+        - Purpose: Returns a light or dark color for text based on the brightness of the color.
+##### ColorPalette Module
+    - File: .venv/lib/python3.11/site-packages/modlib/apps/annotate.py
+    - Purpose: ColorPalette(colors: 'List[Color]')
+- **Attributes**:
+    - colors: List[Color] - List of colors in the palette.
+- **Example Usage**:
+    ```python
+    import cv2
+    import numpy as np
+    
+    from modlib.apps import Annotator, ColorPalette
+    from modlib.apps.calculate import calculate_distance_matrix
+    from modlib.devices import AiCamera
+    from modlib.models.zoo import NanoDetPlus416x416
+    
+    model = NanoDetPlus416x416()
+    device = AiCamera()
+    device.deploy(model)
+    
+    annotator = Annotator(color=ColorPalette.default(), thickness=1, text_thickness=1, text_scale=0.4)
+    
+    with device as stream:
+        for frame in stream:
+            detections = frame.detections[frame.detections.confidence > 0.50]
+    
+            # Calculate distance matrix
+            xc, yc = detections.center_points
+            xc, yc = xc * frame.width, yc * frame.height
+            dist_matrix = calculate_distance_matrix(xc, yc)
+    
+            # Display distance to each objects
+            indices = np.triu_indices(len(xc), k=1)
+            for i, j in zip(*indices):
+                dist = dist_matrix[i, j]
+                p1 = (int(xc[i]), int(yc[i]))
+                p2 = (int(xc[j]), int(yc[j]))
+    
+                cv2.line(frame.image, p1, p2, (255, 255, 255), 1)
+                cv2.putText(frame.image, f"{dist:.1f}", ((p1[0] + p2[0]) // 2, (p1[1] + p2[1]) // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2, )
+    
+            labels = [f"{model.labels[class_id]}: {score:0.2f}" for _, score, class_id, _ in detections]
+            frame.image = annotator.annotate_boxes(frame=frame, detections=detections, labels=labels)
+    
+            frame.display()
+    ```
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize self.  See help(type(self)) for accurate signature.
+        - Args:
+            colors: List[Color] - List of colors in the palette.
+
+    - **`by_idx`**: (Method)
+        - Purpose: Return the color at a given index in the palette.
+        - Args:
+            idx: int - Index of the color in the palette.
+        - Returns: Color
+            The Color at the given index.
+        
+        - Example:
+            ```
+            >>> color_palette.by_idx(1)
+            Color(r=0, g=255, b=0)
+            ```
+##### Heatmap Module
+    - File: .venv/lib/python3.11/site-packages/modlib/apps/heatmap.py
+    - Purpose: Functionality to create and visualize heatmaps based on object detection output data.
+- **Attributes**:
+    - cell_size: int - Cell size that determines the heatmaps resolution
+- **Example Usage**:
+    ```python
+    from modlib.apps import Annotator, Heatmap
+    from modlib.devices import AiCamera
+    from modlib.models.zoo import SSDMobileNetV2FPNLite320x320
+    
+    device = AiCamera()
+    model = SSDMobileNetV2FPNLite320x320()
+    device.deploy(model)
+    
+    heatmap = Heatmap(cell_size=50)
+    annotator = Annotator()
+    
+    with device as stream:
+        for frame in stream:
+            detections = frame.detections[frame.detections.class_id == 0]  # Person
+            detections = detections[detections.confidence > 0.55]
+    
+            # Create Heatmap
+            heatmap.update(frame, detections)
+    
+            labels = [f"{model.labels[class_id]}: {score:0.2f}" for _, score, class_id, _ in detections]
+            annotator.annotate_boxes(frame, detections, labels=labels)
+            frame.display()
+    ```
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize self.  See help(type(self)) for accurate signature.
+        - Args:
+            cell_size: <class 'int'> - Cell size that determines the heatmaps resolution
+
+    - **`bilinear_interpolation`**: (Method)
+        - Purpose: Perform bilinear interpolation for a given point (x, y) in the input image.
+        - Args:
+            x: <class 'numpy.ndarray'> - x-coordinate of the point to be interpolated.
+            y: <class 'numpy.ndarray'> - y-coordinate of the point to be interpolated.
+            img: <class 'numpy.ndarray'> - input image (2D array).
+        - Returns: <class 'numpy.ndarray'>
+            Interpolated pixel values.
+    - **`create`**: (Method)
+        - Purpose: Create the heatmap
+        
+        Raises:
+            ValueError: If the input frames do not match the expected format.
+    - **`resize_image`**: (Method)
+        - Purpose: Resize the input heat_matrix to the target height and width using bilinear interpolation.
+        - Args:
+            heat_matrix: <class 'numpy.ndarray'> - input 2D array to be resized.
+            target_height: <class 'int'> - desired height of the output array.
+            target_width: <class 'int'> - desired width of the output array.
+            cell_size: <class 'int'> - cell size of the heatmap.
+            interpolation_function: typing.Callable[[float, float, numpy.ndarray], float] - function to be used for interpolation.
+        - Returns: <class 'numpy.ndarray'>
+            The resized image.
+    - **`set_cell_size`**: (Method)
+        - Purpose: Change cell size.
+        - Args:
+            cell_size: <class 'int'> - the heatmaps resolution
+
+    - **`set_frame_size`**: (Method)
+        - Purpose: Change frame size.
+        - Args:
+            width: <class 'int'> - Width of the frame size.
+            height: <class 'int'> - Height of the frame size.
+
+    - **`update`**: (Method)
+        - Purpose: Updates the heatmap of the objects on the given frame.
+        - Args:
+            frame: <class 'modlib.devices.frame.Frame'> - The current frame to overlay the heatmap.
+            detections: <class 'modlib.models.results.Detections'> - The object detections.
+        - Returns: <class 'numpy.ndarray'>
+            The updated frame with the heatmap overlay.
+##### Matcher Module
+    - File: .venv/lib/python3.11/site-packages/modlib/apps/matcher.py
+    - Purpose: The `Matcher` module is designed to evaluate spatial relationships between objects, such as determining whether one object is contained within another or whether two objects intersect. 
+    It is suitable for both **simple relationships** (e.g., checking if one object is within another) and **complex relationships** (e.g., evaluating overlaps between multiple objects across different classes).  
+- **Example Usage**:
+    ```python
+    from modlib.apps import Annotator, Matcher
+    from modlib.devices import AiCamera
+    from modlib.models.zoo import SSDMobileNetV2FPNLite320x320
+    
+    device = AiCamera()
+    model = SSDMobileNetV2FPNLite320x320()
+    device.deploy(model)
+    
+    matcher = Matcher()
+    annotator = Annotator()
+    
+    with device as stream:
+        for frame in stream:
+            detections = frame.detections[frame.detections.confidence > 0.50]
+    
+            p = detections[detections.class_id == 0]  # Person
+            c = detections[detections.class_id == 46]  # Cup
+    
+            detections = p[matcher.match(p, c)]
+    
+            labels = ["# PERSON & CUP" for _, s, c, _ in detections]
+            annotator.annotate_boxes(frame, detections, labels=labels)
+            frame.display()
+    ```
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initializes the Matcher instance with the given settings.
+        - Args:
+            max_missing_overlap: <class 'int'> - Maximum number of frames an object can be missing before it is considered lost. Default is 60.
+            max_missing_tracker: <class 'int'> - Maximum number of frames an object can be missing before it is removed from matching. Default is 30.
+            min_overlap_threshold: <class 'float'> - Minimum overlap ratio required to consider two bounding boxes as overlapping. Default is 0.5.
+            hysteresis: <class 'float'> - The hysteresis value used to determine the state of overlap detection. Default is 0.4.
+
+    - **`__iter__`**: (Method)
+        - Purpose: Iterates over the filtered tracked objects.
+    - **`match`**: (Method)
+        - Purpose: Checks to see if one lot of bbox Detections overlap with a List of other objects
+        - Args:
+            base_object: <class 'modlib.models.results.Detections'> - The base detections to match other objects against, must be of type `Detections`, `Poses`, or `Segments` from `modlib.models.results` with bbox results.
+            objects_to_match: <class 'modlib.models.results.Detections'> - Variadic list of detections to be checked against the base object, must be of type `Detections`, `Poses`, or `Segments` from `modlib.models.results` with bbox results.
+        - Returns: typing.List[bool]
+            A mask of base detections that have matched overlap objects.
+        
+        - Example:
+            ```python
+            matches = object1[matcher.match(object1, object2)]
+            #This will give you the filtered object1 that have matched with object2
+            ```
+##### Motion Module
+    - File: .venv/lib/python3.11/site-packages/modlib/apps/motion.py
+    - Purpose: Calculates the change in pixel values from frame to frame and these changes
+    represent motion. All motion is grouped to sort for real motion and calculates
+    bboxes of the motion.
+- **Attributes**:
+    - motion_threshold: int - Minimum threshold for motion detection. Default is 20.
+    - size_threshold: int - Minimum size of detected motion to be considered significant. Default is 300.
+- **Example Usage**:
+    ```python
+    from modlib.devices import AiCamera
+    from modlib.apps import Annotator, Matcher
+    from modlib.apps.motion import Motion
+    from modlib.models.zoo import SSDMobileNetV2FPNLite320x320
+    
+    device = AiCamera(frame_rate=15)
+    model = SSDMobileNetV2FPNLite320x320()
+    device.deploy(model)
+    
+    motion = Motion()
+    annotator = Annotator(thickness=2)
+    matcher = Matcher()
+    
+    with device as stream:
+        for frame in stream:
+            detections = frame.detections[frame.detections.confidence > 0.50]
+            motion_bboxes = motion.detect(frame)
+            detections = detections[matcher.match(detections, motion_bboxes)]
+    
+            labels = ["# MOVING" for _, s, c, _ in detections]
+            annotator.annotate_boxes(frame, detections, labels=labels)
+            annotator.annotate_boxes(frame, motion_bboxes, skip_label=True)
+            frame.display()
+    ```
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initializes the Motion class with thresholds for size and motion detection.
+        - Args:
+            size_threshold: <class 'int'> - Minimum size of detected motion to be considered significant. Default is 300.
+            motion_threshold: <class 'int'> - Minimum threshold for motion detection. Default is 20.
+
+    - **`detect`**: (Method)
+        - Purpose: Detects motion from the current frame compared to the previous frame.
+        - Args:
+            frame: <class 'modlib.devices.frame.Frame'> - The current frame to analyze for motion.
+        - Returns: typing.List[typing.Tuple[int, int, int, int]]
+            A list of bounding boxes representing detected motion.
+        
+        - Example:
+            ```python
+            motion_bboxes = motion.detect(frame)
+##### ObjectCounter Module
+    - File: .venv/lib/python3.11/site-packages/modlib/apps/object_counter.py
+    - Purpose: A class responsible for keeping track of all classes detected and the amount of them over time. Can be used with or
+    without a tracker_id and can be send subsets of Detections and Poses to count certain conditions.
+- **Example Usage**:
+    ```python
+    from modlib.apps import Annotator, BYTETracker, ObjectCounter
+    from modlib.devices import AiCamera
+    from modlib.models.zoo import SSDMobileNetV2FPNLite320x320
+    
+    
+    class BYTETrackerArgs:
+        track_thresh: float = 0.25
+        track_buffer: int = 30
+        match_thresh: float = 0.8
+        aspect_ratio_thresh: float = 3.0
+        min_box_area: float = 1.0
+        mot20: bool = False
+    
+    
+    device = AiCamera()
+    model = SSDMobileNetV2FPNLite320x320()
+    device.deploy(model)
+    
+    tracker = BYTETracker(BYTETrackerArgs())
+    people_counter = ObjectCounter()
+    annotator = Annotator(thickness=1, text_thickness=1, text_scale=0.4)
+    
+    with device as stream:
+        for frame in stream:
+            detections = frame.detections[frame.detections.confidence > 0.55]
+            detections = detections[detections.class_id == 0]  # Person
+            detections = tracker.update(frame, detections)
+    
+            people_counter.update(detections)
+            annotator.set_label(
+                image=frame.image,
+                x=430,
+                y=30,
+                color=(200, 200, 200),
+                label="Total people detected " + str(people_counter.get(0)),
+            )
+    
+            labels = [f"#{t} {model.labels[c]}: {s:0.2f}" for _, s, c, t in detections]
+            annotator.annotate_boxes(frame=frame, detections=detections, labels=labels)
+    
+            frame.display()
+    ```
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initializes the ObjectCounter instance.
+        
+        Attributes:
+            counters (dict): A dictionary to store counts for each detected class.
+            valid_IDs (np.ndarray): An array of valid tracker IDs.
+            uptime (dict): A dictionary to track the uptime of each tracker ID.
+        
+        Example:
+            ```python
+            object_counter = ObjectCounter()
+            ```
+        - Args:
+
+    - **`get`**: (Method)
+        - Purpose: Gets the value of the counter by it's ID
+        - Args:
+            class_id: <class 'int'> - The ID of the class user wants value of
+        - Returns: <class 'int'>
+            The count for the specified class ID. Returns 0 if the class ID is not found.
+        
+        - Example:
+            ```python
+            count = object_counter.get(class_id=1)
+    - **`update`**: (Method)
+        - Purpose: Updates counters for all classes detected in the Detections object. Increments counts for already detected classes.
+        - Args:
+            detections: <class 'modlib.models.results.Detections'> - The detections to process and count. If tracker_id is used, it will only count an ID once it has been seen for more than 20 frames.
+
+    - **`update_pose`**: (Method)
+        - Purpose: Updates counters for pose detections. Since Poses do not have `class_id`, all detections are counted under the class ID `1`.
+        - Args:
+            poses: <class 'modlib.models.results.Poses'> - The pose detections to process and count. If tracker is used, it will only count an ID once it has been seen for more than 30 frames.
+
+##### SpeedCalculator Module
+    - File: .venv/lib/python3.11/site-packages/modlib/apps/calculate.py
+    - Purpose: Calculates the speed of a moving objects and holds all tracked information.
+    Uses bbox centers to calculate the change of distance over time
+- **Attributes**:
+    - region: List[Tuple[float, float]] - Points defining the polygon speed area e.g. [(x1, y1), (x2, y2), ...]
+- **Example Usage**:
+    ```python
+    from modlib.apps import Annotator, ColorPalette, BYTETracker
+    from modlib.apps.calculate import SpeedCalculator
+    from modlib.devices import AiCamera
+    from modlib.models.zoo import NanoDetPlus416x416
+    
+    
+    class BYTETrackerArgs:
+        track_thresh: float = 0.30
+        track_buffer: int = 30
+        match_thresh: float = 0.8
+        aspect_ratio_thresh: float = 3.0
+        min_box_area: float = 1.0
+        mot20: bool = False
+    
+    
+    model = NanoDetPlus416x416()
+    device = AiCamera()
+    device.deploy(model)
+    
+    distance_per_pixel = 0.00742  # Need to recalibrate when camera is repositioned
+    tracker = BYTETracker(BYTETrackerArgs())
+    speed = SpeedCalculator()
+    annotator = Annotator(color=ColorPalette.default(), thickness=1, text_thickness=1, text_scale=0.4)
+    
+    with device as stream:
+        for frame in stream:
+            detections = frame.detections[frame.detections.confidence > 0.50]
+            detections = tracker.update(frame, detections)
+    
+            # Calculate and retrieve speed per tracked object.
+            speed.calculate(frame, detections)
+            current_speeds = [speed.get_speed(t, average=False) for t in detections.tracker_id]
+    
+            labels = [f"{s * distance_per_pixel * 3.6:0.2f}kph" if s is not None else "..." for s in current_speeds]
+            frame.image = annotator.annotate_boxes(frame=frame, detections=detections, labels=labels)
+            frame.display()
+    ```
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initializes the SpeedCalculator instance with the given region.
+        - Args:
+            region: typing.List[typing.Tuple[float, float]] - Points defining the polygon speed area e.g. [(x1, y1), (x2, y2), ...]
+
+    - **`calculate`**: (Method)
+        - Purpose: Calculates the speed of detections by calculating the distance traveled over time using Detection's bboxes.
+        While also storing tracked historic information to calculate the average speed in a given area.
+        - Args:
+            frame: <class 'modlib.devices.frame.Frame'> - The current frame from camera
+            detections: <class 'modlib.models.results.Detections'> - The set of Detections to check if the are in defined area.
+
+    - **`get_speed`**: (Method)
+        - Purpose: Get speed by tracker ID.
+        - Args:
+            t: <class 'int'> - Tracker ID to get speed for.
+            average: <class 'bool'> - Indicates whether to return the average or instantaneous speed. Default is False.
+        - Returns: float | None
+            Speed value in pixels per second, or None if the tracker ID is invalid (-1) or not found.
+        
+        - Example:
+            ```python
+            speed = speed_calculator.get_speed(t, average=True)
+            ```
+##### calculate_distance (Function)
+    - **Arguments**:
+    point1: typing.Tuple[float, float] - Tuple of x and y coordinates for a point
+    point2: typing.Tuple[float, float] - Tuple of x and y coordinates for a point
+    Calculates the distance between 2 given points.
+- **Example Usage**:
+    ```python
+        import cv2
+    import numpy as np
+    
+    from modlib.apps import Annotator, ColorPalette
+    from modlib.apps.calculate import calculate_distance_matrix
+    from modlib.devices import AiCamera
+    from modlib.models.zoo import NanoDetPlus416x416
+    
+    model = NanoDetPlus416x416()
+    device = AiCamera()
+    device.deploy(model)
+    
+    annotator = Annotator(color=ColorPalette.default(), thickness=1, text_thickness=1, text_scale=0.4)
+    
+    with device as stream:
+        for frame in stream:
+            detections = frame.detections[frame.detections.confidence > 0.50]
+    
+            # Calculate distance matrix
+            xc, yc = detections.center_points
+            xc, yc = xc * frame.width, yc * frame.height
+            dist_matrix = calculate_distance_matrix(xc, yc)
+    
+            # Display distance to each objects
+            indices = np.triu_indices(len(xc), k=1)
+            for i, j in zip(*indices):
+                dist = dist_matrix[i, j]
+                p1 = (int(xc[i]), int(yc[i]))
+                p2 = (int(xc[j]), int(yc[j]))
+    
+                cv2.line(frame.image, p1, p2, (255, 255, 255), 1)
+                cv2.putText(frame.image, f"{dist:.1f}", ((p1[0] + p2[0]) // 2, (p1[1] + p2[1]) // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2, )
+    
+            labels = [f"{model.labels[class_id]}: {score:0.2f}" for _, score, class_id, _ in detections]
+            frame.image = annotator.annotate_boxes(frame=frame, detections=detections, labels=labels)
+    
+            frame.display()
+    ```
+##### calculate_distance_matrix (Function)
+    - **Arguments**:
+    x: <class 'numpy.ndarray'> - Array of x-coordinates for the points.
+    y: <class 'numpy.ndarray'> - Array of y-coordinates for the points.
+    Calculates a pairwise distance matrix between points defined by their x and y coordinates.
+- **Example Usage**:
+    ```python
+        import cv2
+    import numpy as np
+    
+    from modlib.apps import Annotator, ColorPalette
+    from modlib.apps.calculate import calculate_distance_matrix
+    from modlib.devices import AiCamera
+    from modlib.models.zoo import NanoDetPlus416x416
+    
+    model = NanoDetPlus416x416()
+    device = AiCamera()
+    device.deploy(model)
+    
+    annotator = Annotator(color=ColorPalette.default(), thickness=1, text_thickness=1, text_scale=0.4)
+    
+    with device as stream:
+        for frame in stream:
+            detections = frame.detections[frame.detections.confidence > 0.50]
+    
+            # Calculate distance matrix
+            xc, yc = detections.center_points
+            xc, yc = xc * frame.width, yc * frame.height
+            dist_matrix = calculate_distance_matrix(xc, yc)
+    
+            # Display distance to each objects
+            indices = np.triu_indices(len(xc), k=1)
+            for i, j in zip(*indices):
+                dist = dist_matrix[i, j]
+                p1 = (int(xc[i]), int(yc[i]))
+                p2 = (int(xc[j]), int(yc[j]))
+    
+                cv2.line(frame.image, p1, p2, (255, 255, 255), 1)
+                cv2.putText(frame.image, f"{dist:.1f}", ((p1[0] + p2[0]) // 2, (p1[1] + p2[1]) // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2, )
+    
+            labels = [f"{model.labels[class_id]}: {score:0.2f}" for _, score, class_id, _ in detections]
+            frame.image = annotator.annotate_boxes(frame=frame, detections=detections, labels=labels)
+    
+            frame.display()
+    ```
+##### estimate_angle (Function)
+    - **Arguments**:
+    k: Any - Array of keypoints.
+    focus_points: Any - Indices of the keypoints to calculate the angle between.
+    height: Any - Height of the frame.
+    width: Any - Width of the frame.
+    Calculates the angle of the chosen keypoints.
+#### modlib.devices Modules
+##### AiCamera Module
+    - File: .venv/lib/python3.11/site-packages/modlib/devices/ai_camera/ai_camera.py
+    - Purpose: The Raspberry Pi AI Camera.
+    
+    This camera device module allows to run model inference on the IMX500 vision sensor.
+    Output tensors are post-processed by the model post-processor function and attached to the frame.
+- **Example Usage**:
+    ```python
+    from modlib.apps import Annotator, Area
+    from modlib.devices import AiCamera
+    from modlib.models.zoo import SSDMobileNetV2FPNLite320x320
+    
+    device = AiCamera()
+    model = SSDMobileNetV2FPNLite320x320()
+    device.deploy(model)
+    
+    annotator = Annotator(thickness=2, text_thickness=1, text_scale=0.4)
+    
+    areas = [
+        Area(points=[[0.1, 0.1], [0.1, 0.9], [0.4, 0.9], [0.4, 0.1]]),  # area 1
+        Area(points=[[0.6, 0.2], [0.8, 0.1], [0.9, 0.4], [0.8, 0.8], [0.6, 0.7]]),  # area 2
+    ]
+    
+    with device as stream:
+        for frame in stream:
+            detections = frame.detections[frame.detections.confidence > 0.55]
+            detections = detections[detections.class_id == 0]  # Person
+    
+            for area in areas:
+                d = detections[area.contains(detections)]
+                color = (0, 255, 0) if len(d) > 0 else (0, 0, 255)
+                annotator.annotate_area(frame, area=area, color=color, label=f"Count: {len(d)}", alpha=0.2)
+    
+            labels = [f"#{model.labels[c]}: {s:0.2f}" for _, s, c, _ in detections]
+            annotator.annotate_boxes(frame, detections, labels=labels, alpha=0.2)
+            frame.display()
+    ```
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize the AiCamera device.
+        - Args:
+            headless: typing.Optional[bool] - Initialising the AiCamera in headless mode means `frame.image` is never processed and unavailable.
+            enable_input_tensor: typing.Optional[bool] - When enabling input tensor, `frame.image` will be replaced by the input tensor image.
+            timeout: typing.Optional[int] - If set, automatically stop the device loop after the specified seconds.
+            frame_rate: typing.Optional[int] - The frames per second applied to the libcamera configuration.
+            image_size: typing.Tuple[int, int] - Resolution of the frame.image. Defaults to (640, 480) which has the original aspect ratio.
+            num: typing.Optional[int] - The camera number to select which camera to use, when more then one AiCamera connected to libcamera.
+
+    - **`__iter__`**: (Method)
+        - Purpose: Iterate over the frames in the device stream.
+    - **`check_timeout`**: (Method)
+        - Purpose: Utility method for checking if the specified timeout if it has been set.
+        Stops the stream iterator if the timeout has been exceeded.
+    - **`deploy`**: (Method)
+        - Purpose: This method manages the process to run a model on the device. This requires the
+        following steps:
+        
+        - Prepare model for deployment
+        - Configure model deployment
+        - Args:
+            model: <class 'modlib.models.model.Model'> - The model to be deployed on the device.
+            overwrite: typing.Optional[bool] - If None, prompts the user for input. If True, overwrites the output directory if it exists.
+
+    - **`get_device_id`**: (Method)
+        - Purpose: Retrieve the unique IMX500 device ID.
+    - **`get_frame`**: (Method)
+        - Purpose: Gets the next processed frame in the device stream.
+    - **`prepare_model_for_deployment`**: (Method)
+        - Purpose: Prepares a model for deployment by converting and/or packaging it based on the model type.
+        Behaviour of the deployment depends on model type:
+        - RPK_PACKAGED: The model is already packaged, so the path is returned as is.
+        - CONVERTED: The model is a converted file (e.g., packerOut.zip), which must be packaged before deployment.
+        - KERAS or ONNX: Framework model files, which must be converted and then packaged.
+        - If the model type is unsupported or the file doesn't exist after processing, None is returned.
+        - Args:
+            model: <class 'modlib.models.model.Model'> - The model to be prepared. Can be of various types such as ONNX, KERAS, CONVERTED, or RPK_PACKAGED.
+            overwrite: typing.Optional[bool] - If None, prompts the user for input. If True, overwrites the output directory if it exists.
+        - Returns: str | None
+            The path to the packaged model file ready for deployment. Returns None if the process fails.
+            overwrite: If None, prompts the user for input. If True, overwrites the output directory if it exists.
+                If False, uses already converted/packaged model from the output directory.
+    - **`set_image_cropping`**: (Method)
+        - Purpose: Set the cropping of the high resolution image. Can only be adjusted during initialisation.
+        - Args:
+            roi: typing.Union[modlib.models.results.ROI, typing.Tuple[float, float, float, float]] - The relative ROI (region of interest) in the form a (left, top, width, height) [%] crop.
+
+    - **`set_input_tensor_cropping`**: (Method)
+        - Purpose: Set the input tensor cropping.
+        - Args:
+            roi: typing.Union[modlib.models.results.ROI, typing.Tuple[float, float, float, float]] - The relative ROI (region of interest) in the form a (left, top, width, height) [%] crop for
+
+    - **`start`**: (Method)
+        - Purpose: Start the AiCamera device stream.
+    - **`stop`**: (Method)
+        - Purpose: Stop the AiCamera device stream.
+#### modlib.models Modules
+##### Anomaly Module
+    - File: .venv/lib/python3.11/site-packages/modlib/models/results.py
+    - Purpose: Data class for anomaly detection results.
+- **Attributes**:
+    - heatmap: np.ndarray - A 2D grid representing the anomaly score heatmap on the frame.
+    - score: float - The anomaly score indicating the likelihood of an anomaly on the full detection.
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize self.  See help(type(self)) for accurate signature.
+        - Args:
+            score: <class 'float'> - The anomaly score indicating the likelihood of an anomaly on the full detection.
+            heatmap: Any - A 2D grid representing the anomaly score heatmap on the frame.
+
+    - **`compensate_for_roi`**: (Method)
+        - Purpose: Compensate the anomaly score heatmap for the given ROI.
+        - Args:
+            roi: <class 'modlib.models.results.ROI'> - The ROI (normalized - left, top, width, height) to compensate for.
+
+    - **`get_mask`**: (Method)
+        - Purpose: Returns the mask with the specified color.
+        - Args:
+            score_threshold: <class 'float'> - The threshold to apply to the heatmap.
+            color: typing.Tuple[int, int, int] - The BGR color to use for the mask. Default is red (0, 0, 255).
+        - Returns: <class 'numpy.ndarray'>
+            A 3-channel (BGR) numpy array representing the colored mask
+    - **`json`**: (Method)
+        - Purpose: Convert the Anomaly object to a JSON-serializable dictionary.
+##### COLOR_FORMAT Module
+    - File: .venv/lib/python3.11/site-packages/modlib/models/model.py
+    - Purpose: Representation of the available color formats the provided model is trained in.
+    Can be used as e.g. `COLOR_FORMAT.RGB`
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize self.  See help(type(self)) for accurate signature.
+        - Args:
+
+##### Classifications Module
+    - File: .venv/lib/python3.11/site-packages/modlib/models/results.py
+    - Purpose: Data class for classification results.
+- **Attributes**:
+    - class_id: np.ndarray - Array of shape (n,) representing the class id of N detections.
+    - confidence: np.ndarray - Array of shape (n,) representing the confidence of N detections.
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize a new instance of Classifications.
+        - Args:
+            confidence: <class 'numpy.ndarray'> - Array of shape (n,) representing the confidence of N detections.
+            class_id: <class 'numpy.ndarray'> - Array of shape (n,) representing the class id of N detections.
+
+    - **`__iter__`**: (Method)
+        - Purpose: Iterate over the detections.
+        
+        Yields:
+            Tuple[float, int]: A tuple containing the confidence and class id of each detection.
+        - Yielded Values:
+            - confidence
+            - class_id
+        - **Example Usage**:
+            ```python
+                        
+            # You cannot iterate over Classifications like "for classification in classifications:" because it is not a list.
+            # Instead , you need to follow the example below.
+            # Assuming you have a frame object that contains detections
+            # Example of iterating over instances of Classifications
+            classifications = frame.detections  # Get detections from a frame
+            for confidence, class_id in classifications:
+                print(confidence, class_id)
+            ```
+    - **`compensate_for_roi`**: (Method)
+        - Purpose: Abstract method responsible for aligning the current detection type with
+        the corresponding `frame.image`. One needs guarantee the resulting detections
+        are compensated for any possible ROI that may be applied.
+        - Args:
+            roi: <class 'modlib.models.results.ROI'> - The ROI (normalized - left, top, width, height) to compensate for.
+
+    - **`copy`**: (Method)
+        - Purpose: Returns a copy of the current detections.
+    - **`json`**: (Method)
+        - Purpose: Convert the Classifications object to a JSON-serializable dictionary.
+##### Detections Module
+    - File: .venv/lib/python3.11/site-packages/modlib/models/results.py
+    - Purpose: Data class for object detections.
+- **Attributes**:
+    - bbox: np.ndarray - Array of shape (n, 4) the bounding boxes [x1, y1, x2, y2] of N detections
+    - class_id: np.ndarray - Array of shape (n,) the class id of N detections
+    - confidence: np.ndarray - Array of shape (n,) the confidence of N detections
+    - tracker_id: np.ndarray - Array of shape (n,) the tracker id of N detections
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize the Detections object.
+        - Args:
+            bbox: <class 'numpy.ndarray'> - Array of shape (n, 4) the bounding boxes [x1, y1, x2, y2] of N detections
+            confidence: <class 'numpy.ndarray'> - Array of shape (n,) the confidence of N detections
+            class_id: <class 'numpy.ndarray'> - Array of shape (n,) the class id of N detections
+
+    - **`__iter__`**: (Method)
+        - Purpose: To iterate over the detections.
+        - Yielded Values:
+            - bbox
+            - confidence
+            - class_id
+            - tracker_id
+        - **Example Usage**:
+            ```python
+                        
+            # You cannot iterate over Detections like "for detection in detections:" because it is not a list.
+            # Instead , you need to follow the example below.
+            # Assuming you have a frame object that contains detections
+            # Example of iterating over instances of Detections
+            detections = frame.detections  # Get detections from a frame
+            for bbox, confidence, class_id, tracker_id in detections:
+                print(bbox, confidence, class_id, tracker_id)
+            ```
+    - **`compensate_for_roi`**: (Method)
+        - Purpose: Compensate the bounding boxes for the given ROI.
+        - Args:
+            roi: <class 'modlib.models.results.ROI'> - The ROI (normalized - left, top, width, height) to compensate for.
+
+    - **`copy`**: (Method)
+        - Purpose: Returns a copy of the current detections.
+    - **`json`**: (Method)
+        - Purpose: Convert the Detections object to a JSON-serializable dictionary.
+##### InstanceSegments Module
+    - File: .venv/lib/python3.11/site-packages/modlib/models/results.py
+    - Purpose: Data class for instance segmentation results.
+- **Attributes**:
+    - bbox: np.ndarray - Bounding boxes for each instance.
+    - class_id: np.ndarray - Class ids for each instance.
+    - confidence: np.ndarray - Confidence scores for each instance.
+    - mask: np.ndarray - Mask arrays containing the id for each identified segment.
+    - tracker_id: np.ndarray - Tracker ids for each instance.
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize self.  See help(type(self)) for accurate signature.
+        - Args:
+            mask: <class 'numpy.ndarray'> - Mask arrays containing the id for each identified segment.
+            bbox: Any - Bounding boxes for each instance.
+            confidence: Any - Confidence scores for each instance.
+            class_id: Any - Class ids for each instance.
+
+    - **`__iter__`**: (Method)
+        - Purpose: Iterate over the instance segments.
+        - Yielded Values:
+            - mask
+            - class_id
+            - confidence
+            - bbox
+            - tracker_id
+        - **Example Usage**:
+            ```python
+                        
+            # You cannot iterate over InstanceSegments like "for instancesegment in instancesegments:" because it is not a list.
+            # Instead , you need to follow the example below.
+            # Assuming you have a frame object that contains detections
+            # Example of iterating over instances of InstanceSegments
+            instancesegments = frame.detections  # Get detections from a frame
+            for mask, class_id, confidence, bbox, tracker_id in instancesegments:
+                print(mask, class_id, confidence, bbox, tracker_id)
+            ```
+    - **`compensate_for_roi`**: (Method)
+        - Purpose: Compensate the instance segmentation masks and optional bounding boxes for the given ROI.
+        - Args:
+            roi: <class 'modlib.models.results.ROI'> - The ROI (normalized - left, top, width, height) to compensate for.
+
+    - **`copy`**: (Method)
+        - Purpose: Returns a copy of the current InstanceSegments.
+    - **`json`**: (Method)
+        - Purpose: Convert the InstanceSegments object to a JSON-serializable dictionary.
+    - **`oriented_bbox`**: (Method)
+        - Purpose: Calculate oriented bounding boxes for each instance mask. Can't be used in tracker
+##### MODEL_TYPE Module
+    - File: .venv/lib/python3.11/site-packages/modlib/models/model.py
+    - Purpose: Representation of the available model types corresponding to the provided model file.
+    Can be used as e.g. `MODEL_TYPE.KERAS`
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize self.  See help(type(self)) for accurate signature.
+        - Args:
+
+##### Model Module
+    - File: .venv/lib/python3.11/site-packages/modlib/models/model.py
+    - Purpose: Abstract base class for models the Application Module Library.
+    
+    Can be used as a base class to create custom models.
+    When creating a custom model, make sure to always:
+    - Initialise the base arguments `model_file`, `model_type`, `color_format` and `preserve_aspect_ratio`
+    - Always implement a post_processor function that returns one of the result types.
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialisation of the model base class.
+        - Args:
+            model_file: <class 'pathlib.Path'> - The path to the model file.
+            model_type: <class 'modlib.models.model.MODEL_TYPE'> - The type of the model.
+            color_format: <class 'modlib.models.model.COLOR_FORMAT'> - The color format of the model.
+            preserve_aspect_ratio: <class 'bool'> - Setting the sensor whether or not to preserve aspect ratio of the input tensor.
+
+    - **`post_process`**: (Method)
+        - Purpose: Perform post-processing on the tensor data and tensor layout.
+        - Args:
+            output_tensors: typing.List[numpy.ndarray] - Resulting output tensors to be processed.
+        - Returns: typing.Union[modlib.models.results.Classifications, modlib.models.results.Detections, modlib.models.results.Poses, modlib.models.results.Segments, modlib.models.results.InstanceSegments, modlib.models.results.Anomaly]
+            The post-processed result.
+    - **`pre_process`**: (Method)
+        - Purpose: Optional pre-processing function the model requires for the input image.
+        The pre-processing function is mimicking the SPI camera functionality,
+        and is only used for data-injection and on Interpreter devices.
+        - Args:
+            image: <class 'numpy.ndarray'> - The input image to be processed.
+        - Returns: typing.Tuple[numpy.ndarray, numpy.ndarray]
+            A tuple containing:
+            - Preprocessed image as a NumPy array (input_tensor_image).
+            - Input tensor ready for model inference.
+##### Poses Module
+    - File: .venv/lib/python3.11/site-packages/modlib/models/results.py
+    - Purpose: Data class for pose estimation results.
+- **Attributes**:
+    - bbox: np.ndarray - Optional bounding box related to the detected poses
+    - confidence: np.ndarray - Confidence scores related to the detected poses
+    - keypoint_scores: np.ndarray - Confidence scores related to the detected keypoints
+    - keypoints: np.ndarray - Detected keypoint coordinates
+    - n_detections: int - Number of detected pose
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize self.  See help(type(self)) for accurate signature.
+        - Args:
+            n_detections: Any - Number of detected pose
+            confidence: Any - Confidence scores related to the detected poses
+            keypoints: Any - Detected keypoint coordinates
+            keypoint_scores: Any - Confidence scores related to the detected keypoints
+            bbox: Any - Optional bounding box related to the detected poses
+
+    - **`__iter__`**: (Method)
+        - Purpose: To iterate over the detections. 
+        - Yielded Values:
+            - keypoints
+            - confidence
+            - keypoint_scores
+            - bbox
+            - tracker_id
+        - **Example Usage**:
+            ```python
+                        
+            # You cannot iterate over Poses like "for pose in poses:" because it is not a list.
+            # Instead , you need to follow the example below.
+            # Assuming you have a frame object that contains detections
+            # Example of iterating over instances of Poses
+            poses = frame.detections  # Get detections from a frame
+            for keypoints, confidence, keypoint_scores, bbox, tracker_id in poses:
+                print(keypoints, confidence, keypoint_scores, bbox, tracker_id)
+            ```
+    - **`compensate_for_roi`**: (Method)
+        - Purpose: Compensate the keypoints and bounding boxes for the given ROI.
+        - Args:
+            roi: <class 'modlib.models.results.ROI'> - The ROI (normalized - left, top, width, height) to compensate for.
+
+    - **`copy`**: (Method)
+        - Purpose: Returns a copy of the current detections.
+    - **`json`**: (Method)
+        - Purpose: Convert the Detections object to a JSON-serializable dictionary.
+##### ROI Module
+    - File: .venv/lib/python3.11/site-packages/modlib/models/results.py
+    - Purpose: Region of Interest (ROI) specifying the bounding box coordinates.
+- **Attributes**:
+    - height: float - The height of the ROI normalized to the height of the frame.
+    - left: float - The x-coordinate of the ROI normalized to the width of the frame.
+    - top: float - The y-coordinate of the ROI normalized to the height of the frame.
+    - width: float - The width of the ROI normalized to the width of the frame.
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize self.  See help(type(self)) for accurate signature.
+        - Args:
+            left: <class 'float'> - The x-coordinate of the ROI normalized to the width of the frame.
+            top: <class 'float'> - The y-coordinate of the ROI normalized to the height of the frame.
+            width: <class 'float'> - The width of the ROI normalized to the width of the frame.
+            height: <class 'float'> - The height of the ROI normalized to the height of the frame.
+
+    - **`__iter__`**: (Method)
+        - Purpose: Iterates over the ROI. (left, top, width, height)
+    - **`json`**: (Method)
+        - Purpose: Convert the ROI to a JSON-serializable dictionary.
+##### Segments Module
+    - File: .venv/lib/python3.11/site-packages/modlib/models/results.py
+    - Purpose: Data class for segmentation results.
+- **Attributes**:
+    - mask: np.ndarray - 2D Mask arrays containing the id for each identified segment in the input tensor.
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize self.  See help(type(self)) for accurate signature.
+        - Args:
+            mask: <class 'numpy.ndarray'> - 2D Mask arrays containing the id for each identified segment in the input tensor.
+
+    - **`compensate_for_roi`**: (Method)
+        - Purpose: Compensate the segmentation mask for the given ROI.
+        - Args:
+            roi: <class 'modlib.models.results.ROI'> - The ROI (normalized - left, top, width, height) to compensate for.
+
+    - **`copy`**: (Method)
+        - Purpose: Returns a copy of the current detections.
+    - **`get_mask`**: (Method)
+        - Purpose: Returns the binary mask of a specific index.
+        - Args:
+            id: <class 'int'> - The index of the mask to return.
+        - Returns: <class 'numpy.ndarray'>
+            A numpy array of shape (h, w) representing the mask of the specified index.
+    - **`json`**: (Method)
+        - Purpose: Convert the Segments object to a JSON-serializable dictionary.
+    - **`to_instance_segments`**: (Method)
+        - Purpose: Perform connected component analysis on a semantic segmentation mask to provide instance segmentation
+        masks. Applies a watershed algorithm to CCA output to improve the results that are connected
+        - Args:
+            instance_args: <class 'object'> - Arguments for instance segmentation.
+        - Returns: InstanceSegments
+            An InstanceSegments object with the instance segmentation masks, class ids.
+#### modlib.models.zoo Modules
+##### DeepLabV3Plus (Segmentation Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import DeepLabV3Plus
+    model = DeepLabV3Plus()
+    ```
+    The network file `imx500_network_deeplabv3plus.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### EfficientDetLite0 (Object Detection Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import EfficientDetLite0
+    model = EfficientDetLite0()
+    ```
+    The network file `imx500_network_efficientdet_lite0_pp.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### EfficientNetB0 (Classification Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import EfficientNetB0
+    model = EfficientNetB0()
+    ```
+    The network file `imx500_network_efficientnet_bo.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### EfficientNetLite0 (Classification Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import EfficientNetLite0
+    model = EfficientNetLite0()
+    ```
+    The network file `imx500_network_efficientnet_lite0.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### EfficientNetV2B0 (Unknown Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import EfficientNetV2B0
+    model = EfficientNetV2B0()
+    ```
+    The network file `imx500_network_efficientnetv2_b0.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### EfficientNetV2B1 (Classification Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import EfficientNetV2B1
+    model = EfficientNetV2B1()
+    ```
+    The network file `imx500_network_efficientnetv2_b1.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### EfficientNetV2B2 (Classification Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import EfficientNetV2B2
+    model = EfficientNetV2B2()
+    ```
+    The network file `imx500_network_efficientnetv2_b2.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### HigherHRNet (Pose Estimation Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import HigherHRNet
+    model = HigherHRNet()
+    ```
+    The network file `imx500_network_higherhrnet_coco.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### InputTensorOnly (Unknown Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import InputTensorOnly
+    model = InputTensorOnly()
+    ```
+    The network file `imx500_network_inputtensoronly.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### MNASNet1_0 (Classification Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import MNASNet1_0
+    model = MNASNet1_0()
+    ```
+    The network file `imx500_network_mnasnet1.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### MobileNetV2 (Classification Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import MobileNetV2
+    model = MobileNetV2()
+    ```
+    The network file `imx500_network_mobilenet_v2.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### MobileViTXS (Classification Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import MobileViTXS
+    model = MobileViTXS()
+    ```
+    The network file `imx500_network_mobilevit_xs.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### MobileViTXXS (Classification Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import MobileViTXXS
+    model = MobileViTXXS()
+    ```
+    The network file `imx500_network_mobilevit_xxs.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### NanoDetPlus416x416 (Object Detection Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import NanoDetPlus416x416
+    model = NanoDetPlus416x416()
+    ```
+    The network file `imx500_network_nanodet_plus_416x416_pp.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### Posenet (Pose Estimation Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import Posenet
+    model = Posenet()
+    ```
+    The network file `imx500_network_posenet.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### RegNetX002 (Classification Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import RegNetX002
+    model = RegNetX002()
+    ```
+    The network file `imx500_network_regnetx_002.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### RegNetY002 (Classification Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import RegNetY002
+    model = RegNetY002()
+    ```
+    The network file `imx500_network_regnety_002.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### RegNetY004 (Classification Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import RegNetY004
+    model = RegNetY004()
+    ```
+    The network file `imx500_network_regnety_004.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### ResNet18 (Classification Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import ResNet18
+    model = ResNet18()
+    ```
+    The network file `imx500_network_resnet18.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### SSDMobileNetV2FPNLite320x320 (Object Detection Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import SSDMobileNetV2FPNLite320x320
+    model = SSDMobileNetV2FPNLite320x320()
+    ```
+    The network file `imx500_network_ssd_mobilenetv2_fpnlite_320x320_pp.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### ShuffleNetV2X1_5 (Classification Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import ShuffleNetV2X1_5
+    model = ShuffleNetV2X1_5()
+    ```
+    The network file `imx500_network_shufflenet_v2_x1_5.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### SqueezeNet1_0 (Classification Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import SqueezeNet1_0
+    model = SqueezeNet1_0()
+    ```
+    The network file `imx500_network_squeezenet1.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### YOLO11n (Object Detection Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import YOLO11n
+    model = YOLO11n()
+    ```
+    The network file `imx500_network_yolo11n_pp.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+##### YOLOv8n (Object Detection Model)
+    - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py
+    - Purpose: ```
+    from modlib.models.zoo import YOLOv8n
+    model = YOLOv8n()
+    ```
+    The network file `imx500_network_yolov8n_pp.rpk` is downloaded from
+    the [Raspberry Pi Model Zoo](https://github.com/raspberrypi/imx500-models)
+## Model Choice
+
+  ### Suggestions for Utilization
+    - Extending the Model Zoo: Use these post-processors when adding new models to the zoo. For example, if adding a new YOLO model, reuse pp_od_yolo_ultralytics or pp_yolov8n_pose for post-processing.
+    - Custom Models: If creating a custom model, adapt an existing post-processor or create a new one based on the provided examples.
+    - Segmentation and Anomaly Detection: Leverage pp_segment and pp_anomaly for applications requiring segmentation masks or anomaly heatmaps.
+    - Pose Estimation: Use pp_posenet or pp_higherhrnet for human pose estimation tasks.
+
+  ### Optimal `frame_rate` for max DPS
+    Setting the device frame_rate (e.g. `device = AiCamera(frame_rate=<frame_rate>)`) has en effect on the rate at which the AI model is able to inference the incoming frames.
+    Each model has a unique frame_rate that maximizes the detection per second (DPS).
+
+    - **Classification Models**:
+      - `EfficientNetB0`: 30 FPS
+      - `EfficientNetLite0`: 29 FPS
+      - `EfficientNetV2B0`: 30 FPS
+      - `EfficientNetV2B1`: 29 FPS
+      - `EfficientNetV2B2`: 26 FPS
+      - `MNASNet1_0`: 30 FPS
+      - `MobileNetV2`: 30 FPS
+      - `MobileViTXS`: 22 FPS
+      - `MobileViTXXS`: 26 FPS
+      - `RegNetX002`: 30 FPS
+      - `RegNetY002`: 30 FPS
+      - `RegNetY004`: 30 FPS
+      - `ResNet18`: 29 FPS
+      - `ShuffleNetV2X1_5`: 30 FPS
+      - `SqueezeNet1_0`: 30 FPS
+    - **Object Detection Models**:
+      - `EfficientDetLite0`: 23 FPS
+      - `NanoDetPlus416x416`: 23 FPS
+      - `SSDMobileNetV2FPNLite320x320`: 26 FPS
+      - `YOLOv8n`: 15 FPS
+      - `YOLO11n`: 15 FPS
+    - **Segmentation Models**:
+      - `DeepLabV3Plus`: 19 FPS
+    - **Pose Estimation Models**:
+      - `Posenet`: 30 FPS
+      - `HigherHRNet`: 11 FPS
+
+  ### Suggestions for Model Selection
+
+    #### Classification Models
+      - **High FPS Applications**:
+        Use models like `MobileNetV2` or `ShuffleNetV2X1_5` for real-time applications requiring high frame rates.
+      - **High Accuracy Applications**:
+        Use models like `EfficientNetB0` or `EfficientNetV2B1` for scenarios where accuracy is more critical than speed.
+      - **Balanced Applications**:
+        Use models like `MobileNetV2` or `EfficientNetLite0` for a balance between accuracy and speed.
+      - **Resource-Constrained Devices**:
+        Use lightweight models like `SqueezeNet1_0` or `MobileNetV2` for devices with limited computational power.
+
+    #### Object Detection Models
+      - **High FPS Applications**:
+        Use models like `NanoDetPlus416x416` or `SSDMobileNetV2FPNLite320x320` for real-time applications requiring high frame rates.
+      - **High Accuracy Applications**:
+        Use models like `YOLOv8n` or `EfficientDetLite0` for scenarios where accuracy is more critical than speed.
+      - **Balanced Applications**:
+        Use models like `YOLOv8n` or `NanoDetPlus416x416` for a balance between accuracy and speed. Prefer `YOLOv8n` for better accuracy.
+      - **Resource-Constrained Devices**:
+        Use lightweight models like `NanoDetPlus416x416` or `SSDMobileNetV2FPNLite320x320` for devices with limited computational power.
+
+    #### Segmentation Models
+      - **Balanced Applications**:
+        Use models like `DeepLabV3Plus` for a balance between accuracy and speed.
+
+    #### Pose Estimation Models
+      - **Balanced Applications**:
+        Use models like `Posenet` or `HigherHRNet for a balance between accuracy and speed.
+
+  ### Labels Used by Models
+    - **Object Detection and Segmentation Models**:
+      - Models like `YOLOv8n`, `YOLO11n`,and `NanoDetPlus416x416` use **COCO_80 labels**.
+      - Default COCO labels should always be COCO_80 unless specfied.
+      - Label file: `assets/coco_labels_80.txt`
+      - **COCO Labels (80 Classes)**: 
+          ```
+          0: person, 1: bicycle, 2: car, 3: motorcycle, 4: airplane, 5: bus, 6: train, 7: truck, 8: boat, 9: traffic light, 
+          10: fire hydrant, 11: stop sign, 12: parking meter, 13: bench, 14: bird, 15: cat, 16: dog, 17: horse, 18: sheep, 
+          19: cow, 20: elephant, 21: bear, 22: zebra, 23: giraffe, 24: backpack, 25: umbrella, 26: handbag, 27: tie, 
+          28: suitcase, 29: frisbee, 30: skis, 31: snowboard, 32: sports ball, 33: kite, 34: baseball bat, 35: baseball glove, 
+          36: skateboard, 37: surfboard, 38: tennis racket, 39: bottle, 40: wine glass, 41: cup, 42: fork, 43: knife, 
+          44: spoon, 45: bowl, 46: banana, 47: apple, 48: sandwich, 49: orange, 50: broccoli, 51: carrot, 52: hot dog, 
+          53: pizza, 54: donut, 55: cake, 56: chair, 57: couch, 58: potted plant, 59: bed, 60: dining table, 61: toilet, 
+          62: tv, 63: laptop, 64: mouse, 65: remote, 66: keyboard, 67: cell phone, 68: microwave, 69: oven, 70: toaster, 
+          71: sink, 72: refrigerator, 73: book, 74: clock, 75: vase, 76: scissors, 77: teddy bear, 78: hair drier, 79: toothbrush
+          ```
+    - Label file: `assets/coco_labels_91.txt`
+      - Models like `SSDMobileNetV2FPNLite320x320`and `EfficientDetLite0` use **COCO_80 labels**.
+      - **COCO Labels (91 Classes)**:
+          ```
+          0: person, 1: bicycle, 2: car, 3: motorcycle, 4: airplane, 5: bus, 6: train, 7: truck, 8: boat, 9: traffic light,
+          10: fire hydrant, 11: -, 12: stop sign, 13: parking meter, 14: bench, 15: bird, 16: cat, 17: dog, 18: horse,
+          19: sheep, 20: cow, 21: elephant, 22: bear, 23: zebra, 24: giraffe, 25: -, 26: backpack, 27: umbrella, 28: -,
+          29: -, 30: handbag, 31: tie, 32: suitcase, 33: frisbee, 34: skis, 35: snowboard, 36: sports ball, 37: kite,
+          38: baseball bat, 39: baseball glove, 40: skateboard, 41: surfboard, 42: tennis racket, 43: bottle, 44: -,
+          45: wine glass, 46: cup, 47: fork, 48: knife, 49: spoon, 50: bowl, 51: banana, 52: apple, 53: sandwich, 54: orange,
+          55: broccoli, 56: carrot, 57: hot dog, 58: pizza, 59: donut, 60: cake, 61: chair, 62: couch, 63: potted plant,
+          64: bed, 65: -, 66: dining table, 67: -, 68: -, 69: toilet, 70: -, 71: tv, 72: laptop, 73: mouse, 74: remote,
+          75: keyboard, 76: cell phone, 77: microwave, 78: oven, 79: toaster, 80: sink, 81: refrigerator, 82: -,
+          83: book, 84: clock, 85: vase, 86: scissors, 87: teddy bear, 88: hair drier, 89: toothbrush, 90: -
+          ```
+    - Models like `EfficientNetB0`, `MobileNetV2`, `ResNet18`, etc., use **ImageNet labels**.
+      - Label file: `assets/imagenet_labels.txt`
+      - **ImageNet Labels (1000 Classes)**:
+        - The labels include a wide range of categories such as animals, objects, plants, and more. Examples:
+          - `0: tench, Tinca tinca`
+          - `1: goldfish, Carassius auratus`
+          - `2: great white shark, white shark, man-eater, man-eating shark, Carcharodon carcharias`
+          - `3: tiger shark, Galeocerdo cuvieri`
+          - `4: hammerhead, hammerhead shark`
+          - `5: electric ray, crampfish, numbfish, torpedo`
+          - `6: stingray`
+          - `7: cock`
+          - `8: hen`
+          - `9: ostrich, Struthio camelus`
+          - ...
+          - `995: toilet tissue, toilet paper, bathroom tissue`
+          - `996: alp`
+          - `997: bubble`
+          - `998: cliff, drop, drop-off`
+          - `999: coral reef`
+        - For the full list of labels, refer to the `imagenet_labels.txt` file.
+
+    #### Suggestions for Missing Label
+      - If a required label is not present in the provided label files (e.g., `coco_labels_80.txt`, `coco_labels_91.txt`, or `imagenet_labels.txt`):
+        1. **Custom Label File**:
+          - Create a custom label file (e.g., `custom_labels.txt`) with the missing labels.
+          - Ensure the labels are listed in the correct order, starting from index `0`.
+        2. **Update the Model**:
+          - Modify the model's `labels` attribute to point to the custom label file:
+            ```python
+            model.labels = np.genfromtxt("path/to/custom_labels.txt", dtype=str, delimiter="\n")
+            ```
+        3. **Verify Label Mapping**:
+          - Ensure the indices in the custom label file align with the model's output class indices.
+        4. **Extend Existing Labels**:
+          - If the missing label is an extension of an existing dataset (e.g., COCO), append the new label to the corresponding file and update the model's `labels` attribute.
+
+      - **Best Practice**:
+        - Always validate the updated or custom label file to ensure it matches the model's output format and indices.
+        - Document any changes to the label files for future reference and reproducibility.
+
+    #### Custom Models
+      To take advantage of modlib's model abstraction layer one needs to follow a certain set of rules. The first one is to initialize the inherited base Model class.
+
+      Arguments:
+        - model_file (Path): The path to the model file.
+        - model_type (MODEL_TYPE): The type of the model.
+        - color_format (COLOR_FORMAT, optional): The color format of the model (RGB or BGR). Defaults to COLOR_FORMAT.RGB.
+        - preserve_aspect_ratio (bool, optional): Setting the sensor whether or not to preserve aspect ratio of the input tensor. Defaults to True.
+
+      Post Processing:
+        Implement the necessary post-processing method, which has a strictly defined signature and expected output.
+        - Argument: output_tensors (List[np.ndarray]) A list of output tensors returned by your custom model
+        - Returns: One of the Result types (Classifications, Detections, Poses, Segments or Anomaly)
+        For convenience, the most common post-processing functions are included in the post_processing library of the Application Module Library. As a rule: The output of the post-processor function will be available in the frame.detections variable during runtime.
+
+      Pre Processing:
+        The pre-processing method is only required when deploying the model to an Interpreter Device or when using Data-Injection. Similar to the post-processing, pre-processing has a predifined function signature and expected output.
+        - Argument: image (np.ndarray) The input image of the Source to be processed.
+        - Returns: (Tuple[np.ndarray, np.ndarray]) A tuple (input_tensor_image, input_tensor):
+        - Preprocessed input tensor image as a NumPy array.
+        - Input tensor ready for model inference.
+
+      **Example**:
+        ```python
+        import numpy as np
+        from typing import List
+
+        from modlib.apps import Annotator
+        from modlib.devices import AiCamera
+        from modlib.models import COLOR_FORMAT, MODEL_TYPE, Model
+        from modlib.models.post_processors import pp_od_bscn
+        from modlib.models.results import Detections
+
+        class SSDMobileNetV2FPNLite320x320(Model):
+            def __init__(self):
+                super().__init__(
+                    model_file="./path/to/imx500_network_ssd_mobilenetv2_fpnlite_320x320_pp.rpk",
+                    model_type=MODEL_TYPE.RPK_PACKAGED,
+                    color_format=COLOR_FORMAT.RGB,
+                    preserve_aspect_ratio=False,
+                )
+
+                # Optionally define self.labels
+
+            def post_process(self, output_tensors: List[np.ndarray]) -> Detections:
+                return pp_od_bscn(output_tensors)
+            
+
+        device = AiCamera()
+        model = SSDMobileNetV2FPNLite320x320()
+        device.deploy(model)
+        ```
+
+## Usage Instructions
+  - You only have one camera and can only deploy one model on the camera. Only use one model unless told you hae two cameras.
+
+  General Workflow
+    1. Import the Required Modules:
+      - Import the necessary classes from the library (e.g., Annotator, Frame, Detections).
+      - Import the necessary class for the AI model (any zoo models use "from modlib.models.zoo import MODEL")
+    2. Initialize Components:
+      - Setup the device and deploy the AI model
+      - Set up the Annotator with optional parameters like color palette, thickness, and text scale.
+      - If Object detection or Pose detection application use Tracker module to id objects over frames.
+    3. Process Data:
+      - Use the Frame class to capture or process frames.
+      - Use the Detections, Poses, or Segments classes to handle model outputs.
+    4. Perform Operations:
+      - Use the appropriate module (e.g., Annotator for visualization, Motion for motion detection, BYTETracker for tracking) to process the data.
+      - Create new functions to solve the application logic if it can not be solved with the exisitng modules
+
+## BYTETrackerArgs configuration parameters Class
+  A local class that must be created to use BYTETracker, done by adding to the local application code. This local class holds configuration parameters for the BYTETracker that it requires as in input to initialise the BYTETracker. All parameters are required for the input into the BYTETracker.
+  - **Parameters**: 
+    - `track_thresh`: confidence threshold for tracking objects
+    - `track_buffer`: number of frames an object can "disappear" before it is considered lost and removed from tracking.  
+    - `match_thresh`: threshold for matching detected objects between frames
+    - `aspect_ratio_thresh`: threshold for the aspect ratio (width-to-height ratio) of detected objects, helps filter out detections that don't match the expected shape of the tracked objects.
+    - `min_box_area`: the minimum area (in pixels) of a bounding box for an object to be considered valid for tracking
+    - `mot20`:  `True` or `False` value indicating whether the tracker should use settings optimized for the MOT20 (Multi-Object Tracking 2020) dataset.
+  - **Usage**: Create class locally in the application and define all parameters in class. Then use this class as a input to the BYTETracker
+  - **Example Initialisation**:
+    ```python
+    class BYTETrackerArgs:
+      track_thresh: float = 0.25
+      track_buffer: int = 30
+      match_thresh: float = 0.8
+      aspect_ratio_thresh: float = 3.0
+      min_box_area: float = 1.0
+      mot20: bool = False
+    ```
+
+## Handling Missing Functions
+  If the required functionality is missing from the library, follow these steps:
+
+  1. **Check for Existing Packages**:
+    - **Search for Packages**: First, check if there are any external packages available that provide the required functionality. You can use package managers like `pip` or `conda` to search for relevant libraries.
+    - **User Prompt**: If suitable packages are found, prompt the user with the following:
+      - "I found the following packages that may provide the required functionality: [list of packages]. Would you like to install one of these packages? (yes/no)"
+    - **User Decision**:
+      - If the user chooses to install a package:
+        - Provide instructions to install the package using `uv`:
+          ```bash
+          uv install <package_name>
+          ```
+        - Instruct the user to add the package to the `pyproject.toml` file. You can provide a template for how to add the dependency:
+          ```toml
+          [tool.poetry.dependencies]
+          <package_name> = "^<version>"
+          ```
+      - If the user declines, proceed to the next step.
+
+  2. **Understand the Requirements**:
+    - Analyze the input and output requirements for the missing function.
+    - Determine the data types and structures involved (e.g., `Detections`, `Poses`, `Segments`, `np.ndarray`).
+
+  3. **Leverage Existing Functions**:
+    - Check if similar functions exist in the library (e.g., post-processors, annotators, or utility functions).
+    - Reuse or adapt parts of existing functions to implement the missing functionality.
+
+  4. **Write the Function**:
+    - Define the function with appropriate arguments and return types.
+    - Use the library's conventions for naming, formatting, and error handling.
+    - Include inline comments to explain the logic.
+
+  5. **Test the Function**:
+    - Write unit tests or use example data to validate the function's behavior.
+    - Ensure the function integrates seamlessly with other modules in the library.
+
+  6. **Document the Function**:
+    - Add a docstring to describe the function's purpose, arguments, and return values.
+    - Provide an example usage to demonstrate how the function can be called.
+
+##  Best Practices for Object Tracking
+  When developing applications that involve tracking objects across frames, it is essential to maintain consistent object identities. The Tracker module provides the necessary tools to achieve this. Follow these guidelines:
+
+  1. **Mandatory Use of Tracker Module**:
+    - Always use the Tracker module (e.g., `BYTETracker`) in applications where:
+      - Objects need to be counted over time (e.g., cars, people).
+      - Objects need to be tracked across multiple frames to maintain consistent identities.
+      - Occlusions or temporary detection gaps are expected, and object continuity is required.
+    - **Note**: For applications involving counting objects (e.g., red cars, pedestrians), the Tracker module is mandatory to avoid double-counting and ensure accurate tracking.
+    - **Note**: When using the BYTETracker, the local class of BYTETrackerArgs must be created in the same application code to send to the BYTETracker. 
+
+  2. **Integration with Object Detection**:
+    - Combine the Tracker module with object detection outputs to track objects over time.
+    - Update the tracker with detections in each frame to maintain object continuity.
+
+  3. **Decision Rule for Using Tracker**:
+    - Use the following decision rule to determine if the Tracker module is required:
+      - **YES**: If the application involves counting or tracking objects across frames.
+      - **NO**: If the application processes each frame independently without requiring object continuity (e.g., single-frame anomaly detection).
+
+  4. **Example Workflow**:
+    - Initialize BYTETrackerArgs with declared parameters in local code. Cannot and do not import 
+    - Initialize the Tracker.
+    - Capture frames and detect objects.
+    - Use the Tracker to track detected objects across frames.
+    - Annotate and display tracked objects with their tracker IDs.
+
+## Error Handling
+  - **Common Errors**
+    - List common errors users might encounter, along with solutions:
+    - **Error 1**: "ModuleNotFoundError"
+      - **Description**: This error occurs when a required module is not installed properly or the module path is incorrect.
+      - **How to Solve**:
+        - Ensure all required modules are installed in your Python environment. Use `pip install <module_name>` to install missing modules.
+        - Verify the module path and ensure you are importing the correct module or function from `modlib`.
+
+    - **Error 2**: "ValueError"
+      - **Description**: This error may occur if the input data is not in the expected format or type.
+      - **How to Solve**:
+        - Validate the input data format and ensure it matches the expected structure (e.g., `Detections`, `Poses`, or `Segments`).
+        - Check if you are iterating over the results correctly. For example, ensure you are using the correct method or attribute to access the results (e.g., `detections.bbox` or `detections.center_points`).
+        - If an annotating function returns an error, consider writing a custom annotate function to handle your specific variable type.
+
+    - **Error 3**: "AttributeError"
+      - **Description**: This error occurs when trying to access an attribute or method that does not exist for a given object.
+      - **How to Solve**:
+        - Verify that the object has the attribute or method you are trying to access.
+        - Check the `modlib` documentation to ensure you are using the correct attribute or method name.
+        - Use `hasattr()` to check if the attribute exists before accessing it.
+
+    - **Error 4**: "TypeError"
+      - **Description**: This error occurs when an operation or function is applied to an object of inappropriate type.
+      - **How to Solve**:
+        - Ensure that the function arguments are of the correct type.
+        - Check the function signature in the `modlib` documentation and provide arguments in the expected format.
+        - Validate input types before passing them to a function.
+
+    - **Error 5**: "IndexError"
+      - **Description**: This error occurs when trying to access an index that is out of range in a list or array.
+      - **How to Solve**:
+        - Ensure that the index you are trying to access is within the valid range.
+        - Validate the length of the list or array before accessing an index.
+        - Use conditional checks to avoid accessing empty lists or arrays.
+
+    - **Error 6**: "ImportError"
+      - **Description**: This error occurs when a module or function cannot be imported.
+      - **How to Solve**:
+        - Verify that the module or function exists and is correctly spelled.
+        - Ensure the module is installed and available in your Python environment.
+        - Check for typos in the import statement and confirm the module's location.
+
+    - **Error 7**: "RuntimeError"
+      - **Description**: This error occurs during the execution of the program, often due to logical errors or invalid operations.
+      - **How to Solve**:
+        - Check the error message for details on what caused the runtime error.
+        - Debug the code to identify and fix logical errors or invalid operations.
+        - Validate input data and ensure it is compatible with the operation being performed.
+        
+## Combination of Modules
+  ### 1. BYTETracker and BYTETrackerArgs
+    - **BYTETracker Requirements**: `BYTETracker` needs `BYTETrackerArgs` as an input argument. Define `BYTETrackerArgs` locally based of example code snippets and then input into `BYTETracker`
+    - **Enhanced Tracking Accuracy**: By configuring parameters with `BYTETrackerArgs`, users can fine-tune the tracking behavior to suit specific scenarios, leading to more accurate object tracking.
+    - **Adaptability**: The ability to adjust parameters like `max_age` and `min_hits` allows the tracker to adapt to different environments, such as crowded scenes or fast-moving objects.
+    - **Real-Time Performance**: Combining these modules enables efficient real-time tracking, making it suitable for applications like surveillance, sports analytics, and autonomous vehicles.
+
+  ### 2. Motion and Matcher
+    - **Comprehensive Object Recognition**: Using `Motion` to detect movement and `Matcher` to correlate objects ensures that users can recognize and track the same object across multiple frames, enhancing the reliability of detection.
+    - **Reduced False Positives**: The combination helps filter out irrelevant movements by ensuring that only matched objects are considered, reducing false alarms in security applications.
+    - **Improved Situational Awareness**: This pairing allows for better monitoring of dynamic environments, providing users with actionable insights based on detected movements and tracked objects.
+
+  ### 3. Motion and Area
+    - **Targeted Monitoring**: By defining specific areas of interest with the `Area` module, users can focus their motion detection efforts, ensuring that alerts are generated only for relevant movements.
+    - **Resource Efficiency**: This combination reduces the processing load by limiting motion detection to predefined areas, making it more efficient for applications with limited computational resources.
+    - **Enhanced Security**: Monitoring designated areas increases security effectiveness, as users can receive alerts only when motion is detected in critical zones, such as entrances or restricted areas.
+
+  ### 4. Object_Counter and Tracker
+    - **Comprehensive Analysis**: Combining object counting with tracking provides a holistic view of the scene, allowing users to understand not only how many objects are present but also their movements and interactions.
+    - **Data-Driven Insights**: This combination can generate valuable data for analytics, such as traffic flow in retail environments or crowd density in public spaces, aiding in decision-making.
+    - **Real-Time Monitoring**: Users can monitor changes in object counts and track their movements simultaneously, enabling timely responses to dynamic situations, such as crowd control or resource allocation.
+
+  ### 5. Matcher and BYTETracker
+    - **Simplify Use Cases**: The `Matcher` is ideal for evaluating spatial relationships between objects, such as determining overlaps or proximity. It can be used independently or in combination with `BYTETracker` for more complex scenarios.  
+    - **Spatial Relationship Evaluation**: Filters detections based on relationships, such as whether one object is contained within another or intersects with another. This is particularly useful for tasks like verifying compliance (e.g., checking if people are wearing high-visibility jackets).  
+    - **Use Case**:  
+      - **Simple Tasks**: For straightforward tasks like checking overlaps between detected people and high-visibility jackets, the `Matcher` provides an efficient and scalable solution.  
+      - **Complex Scenarios**: In cases involving multiple object types or dynamic spatial relationships, the `Matcher` ensures accuracy and consistency.  
+      - **Example**: Detecting multiple object types that interact with one another (e.g., a person interacting with a high-visibility jacket or matching Motion output with detected objects to see if they are in motion).
+
+  ### Conclusion
+    By leveraging these module combinations, users can create more robust, efficient, and effective applications within the modlib library. The synergistic effects of using these modules together lead to enhanced performance, improved accuracy, and greater situational awareness, ultimately benefiting a wide range of use cases.
+
+##  Best Practices
+  ### Coding Best Practices
+    - **Naming Conventions for Variables**:
+      - Use descriptive and meaningful names for variables that clearly indicate their purpose. For example:
+        - Instead of `dets`, use `detections` to represent detected objects.
+        - Instead of `area`, use `area_of_interest` to specify the monitored region.
+      - Follow a consistent naming convention, such as `snake_case` for variable names and `CamelCase` for class names, to improve code consistency.
+
+    - **Structuring Code for Readability**:
+      - Organize your code into logical sections using functions or classes. This modular approach makes it easier to understand and reuse code.
+      - Keep functions focused on a single task. For example, create a function for motion detection and another for filtering detections:
+        ```python
+        def detect_motion(frame):
+            # Logic for detecting motion
+            return detected_objects
+
+        def filter_detections(detections, matcher, area_detections, area_motion):
+            return detections[matcher.match(area_detections, area_motion)]
+        ```
+      - Use whitespace effectively to separate logical blocks of code, making it easier to read.
+
+    - **Commenting on Complex Logic**:
+      - Write comments to explain the purpose of complex code segments, especially when the logic may not be immediately clear to others (or to your future self). For example:
+        ```python
+        # Filter motion detections based on area of interest
+        motion_detections = filter_detections(detections, matcher, area_detections, area_motion)
+        ```
+      - Avoid obvious comments that do not add value. Instead, focus on explaining why certain decisions were made or how specific algorithms work.
+
+  ### Techniques for Filtering Detections
+    - **Recommended Coding Technique for Filtering Detections**:  
+      When filtering detections based on spatial relationships, confidence thresholds, or other criteria, the following coding technique should always be used:  
+      ```python
+      filtered_detections = base_detections[filtering_condition(base_detections, other_detections)]
+      ```
+      **Explanation**:  
+      - `base_detections`: The primary set of detections you want to filter (e.g., people).  
+      - `filtering_condition`: A function or operation that evaluates whether each detection in `base_detections` satisfies the desired condition (e.g., overlap, confidence threshold, or proximity).  
+      - `other_detections`: The secondary set of detections or criteria you want to match against (e.g., high-visibility jackets, motion regions, or anomaly masks).  
+      - The boolean mask returned by `filtering_condition` is then used to filter `base_detections` directly.  
+      **Why Use This Technique?**:
+      - **Clarity**: This approach makes it immediately clear which detections are being filtered and how the filtering is performed.  
+      - **Efficiency**: The use of boolean indexing ensures that the filtering operation is both concise and computationally efficient.  
+      - **Scalability**: This technique can handle large numbers of detections without additional complexity.  
+      - **General Applicability**: This coding technique should be used whenever filtering detections, regardless of the specific module or context.  
+
+    - **Error Handling**:
+      Implement error handling to manage potential issues that may arise during filtering. For example, check if the matcher returns valid indices before accessing the detections:
+      ```python
+      matched_indices = matcher.match(area_detections, area_motion)
+      if matched_indices:
+          motion_detections = detections[matched_indices]
+      else:
+          motion_detections = []
+          print("No matches found.")
+      ```
+  
+  ### BYTETracker
+    - **Inputs**: BYTETracker has required input args which is a class of BYTETrackerArgs that needs to be declared locally
+    - **Matching**: If you matching objects then it is best to use to use the Matcher module as the tracker will only match objects from frame to frame so that an object can have a unique ID number across different frames. The Match module will match detections with other detections to see if the base group is containing the other groups.
+
+  ### Other
+    - Don't use classes or functions to build the application logic. Follow the structure in examples and the usage instructions
+    - Use the default color palette for consistent visualization.
+    - Always filter out low confidence detections, minimum threshold should be 0.3
+    - Ensure input data (e.g., detections, poses, segments) conforms to the expected types.
+    - Leverage the alpha parameter for transparency to improve visualization clarity.
+    - Avoid hardcoding values; use configuration files or environment variables where applicable.
+    - Extend the Annotator class for additional custom annotation needs.
+    - Consistency: Use the default settings for modules like Annotator and Heatmap to ensure consistent visualization.
+    - Input Validation: Ensure input data (e.g., Detections, Poses, Segments) conforms to the expected types.
+    - Transparency: Leverage the alpha parameter for transparency in visualizations to improve clarity.
+    - Configuration: Avoid hardcoding values; use configuration files or environment variables where applicable.
+    - Extensibility: Extend classes like Annotator or BYTETracker for additional custom functionality.
+    - Performance: Optimize the use of modules like Motion and BYTETracker for real-time applications by tuning thresholds and parameters.
+    - If no device is explicitly specified, the default device is `AiCamera`. This simplifies initialization for general-purpose applications. Ensure proper configuration of frame rate and image size when relying on the default device.
+    - For applications involving counting objects over time (e.g., cars, people), the Tracker module is mandatory to avoid double-counting and ensure consistent object identities.
+
+##  Resources
+  - Refer to the library's documentation for detailed information on its modules and APIs.
+  - Use the examples provided in this file as a starting point for building applications.
+
+## Notes
+  - This library is designed to simplify the development of applications that interact with devices, models, and application modules.
+  - Ensure that all modules are used as per the guidelines provided in this file.
+  - When using the AICamera data will be sequential and a live feed or playback of live feed
+  - For missing features, consider extending the library in a modular and maintainable way.

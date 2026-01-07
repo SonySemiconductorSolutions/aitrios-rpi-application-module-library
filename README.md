@@ -5,16 +5,16 @@ Application Module Library (modlib) is an SDK designed to simplify and streamlin
 
 ## 1. Quickstart
 
-For the Raspberry Pi AI Camera  
-**Required Python version: 3.11**
+For the Raspberry Pi AI Camera, make sure that the python version of the virtual environment is the same as the system Python version. (Verify by running `/usr/bin/python3 -V`). This depends on your platform.
+- Raspberry Pi OS Bookworm: **Python 3.11**
+- Raspberry Pi OS Trixie: **Python 3.13**  
 
 We expect the Raspberry Pi computer to be installed correclty with the AiCamera connected and access to the board terminal. Ensure that your Raspberry Pi runs the latest software. A full setup guide can be found [here](docs/src/devices/ai_camera.md).
 
-One can use pip to install the library in your project (virtual) Python environment.
+One can use pip to install the library in your project Python environment.
 ```shell
-pip install git+https://github.com/SonySemiconductorSolutions/aitrios-rpi-application-module-library.git
+pip install modlib
 ```
-> We are currently working on publishing Modlib to the PyPI index. This will make it easier for developers to install and manage the library using pip and allow for a more streamlined setup process. Stay tuned for updates!
 
 Create a new Python file named `hello_world.py`. and run the following code to see a camera preview.
 ```python title="hello_world.py"

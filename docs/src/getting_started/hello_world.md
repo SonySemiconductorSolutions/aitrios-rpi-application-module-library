@@ -29,6 +29,9 @@ sudo apt install imx500-all
 
 2. (Optional) Create and enable a virtual environment.
 
+Make sure that the python version of the virtual environment is the same as the system Python version. (Verify by running `/usr/bin/python3 -V`). This depends on your platform.
+- Raspberry Pi OS Bookworm: **Python 3.11**
+- Raspberry Pi OS Trixie: **Python 3.13**  
 ```shell
 python -m venv .venv
 source .venv/bin/activate
@@ -36,12 +39,8 @@ source .venv/bin/activate
 
 3. One can use pip to install the library in your project Python environment.
 ```shell
-pip install git+https://github.com/SonySemiconductorSolutions/aitrios-rpi-application-module-library.git
+pip install modlib
 ```
-
-:::warning  
-We are currently working on publishing Modlib to the PyPI index. This will make it easier for developers to install and manage the library using pip and allow for a more streamlined setup process. Stay tuned for updates!
-:::
 
 ## Verify your setup
 

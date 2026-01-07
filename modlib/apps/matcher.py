@@ -26,7 +26,7 @@ from modlib.models.results import Detections
 @dataclass
 class MatcherSettings:
     """
-    Helper datacalss containing the matcher settings.
+    Helper dataclass containing the matcher settings.
     """
 
     MAX_MISSING_OVERLAP: int
@@ -37,7 +37,7 @@ class MatcherSettings:
 
 class FIFOQueue:
     """
-    The FIFOQueue class provides positional filtering, enabling smoother tracking of objects.
+    The FIFOQueue class provides positional filtering, enabling smoother matching of objects.
     """
 
     def __init__(self, n, initial_bbox):
@@ -62,7 +62,7 @@ class FIFOQueue:
 
 class DetectedObject:
     """
-    A class encapsulates the state information of each detected object,
+    A class encapsulating the state information of each detected object,
     maintaining details such as position, state of overlap, and other relevant attributes.
     """
 
@@ -77,7 +77,7 @@ class DetectedObject:
     ):
         """
         Args:
-            box: array of base object bbox
+            bbox: array of base object bbox
             confidence: confidence value of base object detection
             class_id: id value of the base detection
             tracker_id: tracker id result if being used. Will use a default number if not in use
@@ -169,11 +169,10 @@ class DetectedObject:
 
 class Matcher:
     """
-    A class responsible for parsing new detections, matching them with the current state of objects,
-    and ensuring that each object's state is updated accordingly. This class plays a crucial role in maintaining the
-    accuracy and consistency of object tracking by synchronizing detected events with existing object data.
-
-    For example, to create and use Matcher it can be used like this. Can also be used with Tracker
+    The `Matcher` module is designed to evaluate spatial relationships between objects, such as determining whether one object is contained within another or whether two objects intersect. 
+    It is suitable for both **simple relationships** (e.g., checking if one object is within another) and **complex relationships** (e.g., evaluating overlaps between multiple objects across different classes).  
+    
+    For example, to create and use Matcher it can be used like this:
     ```
     from modlib.apps import Matcher
 
@@ -193,11 +192,18 @@ class Matcher:
         hysteresis: float = 0.4,
     ):
         """
+        Initializes the Matcher instance with the given settings.
+
         Args:
-            max_missing_overlap: Maximum number of frames an object can be missing before it is considered lost.
-            max_missing_tracker: Maximum number of frames an object can be missing before it is removed from tracking.
-            min_overlap_threshold: Minimum overlap ratio required to consider two bounding boxes as overlapping.
-            hysteresis: The hysteresis value used to determine the state of overlap detection.
+            max_missing_overlap: Maximum number of frames an object can be missing before it is considered lost. Default is 60.
+            max_missing_tracker: Maximum number of frames an object can be missing before it is removed from matching. Default is 30.
+            min_overlap_threshold: Minimum overlap ratio required to consider two bounding boxes as overlapping. Default is 0.5.
+            hysteresis: The hysteresis value used to determine the state of overlap detection. Default is 0.4.
+
+        Example:
+            ```python
+            matcher = Matcher()
+            ```
         """
         self.tracked_objects = []
         self.deleted_ids = deque()
@@ -216,11 +222,17 @@ class Matcher:
         Checks to see if one lot of bbox Detections overlap with a List of other objects
 
         Args:
-            base_object: The base Detections that will be to match other objects.
-            objects_to_match: Variadic list of the Detections to be checked against the main object.
+            base_object: The base detections to match other objects against, must be of type `Detections`, `Poses`, or `Segments` from `modlib.models.results` with bbox results.
+            objects_to_match: Variadic list of detections to be checked against the base object, must be of type `Detections`, `Poses`, or `Segments` from `modlib.models.results` with bbox results.
 
         Returns:
-            The mask of base detections that have all matched overlap objects
+            A mask of base detections that have matched overlap objects.
+
+        Example:
+            ```python
+            matches = object1[matcher.match(object1, object2)]
+            #This will give you the filtered object1 that have matched with object2
+            ```
         """
         self.base_bboxes = base_object
 
@@ -232,8 +244,8 @@ class Matcher:
         for i, obj in enumerate(objects_to_match):  # For each object to match
             self.tracked_object = self.tracked_objects[i]
             self.overlap_detector.filter(self.base_bboxes, obj)
-            self.update_tracked()
-            mask = self.get_mask()
+            self.__update_tracked()
+            mask = self.__get_mask()
             masks.append(mask)
 
         return_mask = masks[0]
@@ -243,9 +255,9 @@ class Matcher:
 
         return return_mask
 
-    def update_tracked(self):
+    def __update_tracked(self):
         """
-        Updates the tracked Detection information over time. Also adds new tracked Detections and removes them.
+        Updates the matched Detection information over time. Also adds new matched Detections and removes them.
         """
         overlap_objects = self.overlap_detector
         self.deleted_ids = deque()
@@ -270,9 +282,9 @@ class Matcher:
 
         if len(overlap_objects_list):
             self.tracked_object.extend(overlap_objects_list)
-        self.merge_tensors()
+        self.__merge_tensors()
 
-    def get_mask(self) -> List[bool]:
+    def __get_mask(self) -> List[bool]:
         """
         Generates output mask for object being matched
 
@@ -294,7 +306,7 @@ class Matcher:
                 mask[i] = False
         return mask
 
-    def merge_tensors(self):
+    def __merge_tensors(self):
         self.filtered_tracked_object = [to for to in self.tracked_object if not to.missing()]
 
         self.bbox = np.array([to.bbox for to in self.filtered_tracked_object])
@@ -306,6 +318,9 @@ class Matcher:
         return len(self.filtered_tracked_object)
 
     def __iter__(self) -> Iterator[Tuple[np.ndarray, float, int, int, float, int]]:
+        """
+        Iterates over the filtered tracked objects.
+        """
         for o in self.filtered_tracked_object:
             yield o.get()
 
@@ -327,7 +342,7 @@ class OverlapDetector:
 
         Args:
             base_bboxes: bboxes of a class_id that are being matched with all other objects
-            overlay_bboxes: bboxes of a class_id that are to be mathced with the base_bboxes
+            overlay_bboxes: bboxes of a class_id that are to be matched with the base_bboxes
         """
         self.base_bboxes = base_bboxes.bbox
         self.overlay_bboxes = overlay_bboxes.bbox
@@ -340,13 +355,12 @@ class OverlapDetector:
         else:
             return
 
-    def bbox_intersect_ratio(self):
+    def bbox_intersect_ratio(self) -> np.ndarray:
         """
         Returns:
             The overlap ratio between the base bounding box and the overlaying bounding box.
         """
         # Expand dimensions to allow broadcasting
-        # a_areas = (self.base_bboxes[:, 2] - self.base_bboxes[:, 0]) * (self.base_bboxes[:, 3] - self.base_bboxes[:, 1])
         b_areas = (self.overlay_bboxes[:, 2] - self.overlay_bboxes[:, 0]) * (
             self.overlay_bboxes[:, 3] - self.overlay_bboxes[:, 1]
         )
@@ -359,9 +373,6 @@ class OverlapDetector:
 
         # Compute the area of intersection rectangle
         inter_area = np.maximum(inter_x2 - inter_x1, 0) * np.maximum(inter_y2 - inter_y1, 0)
-
-        # Compute the area of union
-        # union_area = (a_areas[:, None] + b_areas) - inter_area
 
         overlap_ratio = inter_area / b_areas
 

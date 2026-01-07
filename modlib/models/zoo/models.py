@@ -685,6 +685,7 @@ class DeepLabV3Plus(Model):
             color_format=COLOR_FORMAT.RGB,
             preserve_aspect_ratio=False,
         )
+        self.labels = np.genfromtxt(f"{ASSETS_DIR}/pascal_voc_2012.txt", dtype=str, delimiter="\n")
 
     def pre_process(self, image: np.ndarray) -> np.ndarray:
         raise NotImplementedError("Pre-processing not implemented for this model.")
