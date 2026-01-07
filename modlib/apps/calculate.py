@@ -44,6 +44,22 @@ class SpeedCalculator:
     region: List[Tuple[float, float]]  #: Points defining the polygon speed area e.g. [(x1, y1), (x2, y2), ...]
 
     def __init__(self, region: List[Tuple[float, float]] = [(0, 0), (1, 0), (1, 1), (0, 1)]):
+        """
+        Initializes the SpeedCalculator instance with the given region.
+
+        Args:
+            region: Points defining the polygon speed area. Default is [(0, 0), (1, 0), (1, 1), (0, 1)].
+
+        Raises:
+            ValueError: If the region is not defined by exactly 4 points or if any point is not a tuple of 2 values.
+
+        Example:
+            ```python
+            region = [(0.49, 0.0), (0.51, 0.0), (0.51, 1.0), (0.49, 1.0)]
+            speed_calculator = SpeedCalculator(region)
+            ```
+        """
+
         if len(region) != 4 or not all(len(point) == 2 for point in region):
             raise ValueError("""
                 Region must be defined by exactly 4 points [(x1,y1), (x2,y2), (x3,y3), (x4,y4)] and
@@ -62,12 +78,17 @@ class SpeedCalculator:
 
     def calculate(self, frame: Frame, detections: Detections):
         """
-        Calculates the speed of detections by calculating the distance travelled over time.
+        Calculates the speed of detections by calculating the distance traveled over time using Detection's bboxes.
         While also storing tracked historic information to calculate the average speed in a given area.
 
         Args:
             frame: The current frame from camera
             detections: The set of Detections to check if the are in defined area.
+
+        Example:
+            ```python
+            speed_calculator.calculate(frame, detections)
+            ```
         """
 
         # Filter detections with invalid track id
@@ -88,7 +109,7 @@ class SpeedCalculator:
 
             self.track_history[t].append(point)
 
-            if self.intersect([self.last_point[t], self.track_history[t][-1]], self.region, frame.height, frame.width):
+            if self.__intersect([self.last_point[t], self.track_history[t][-1]], self.region, frame.height, frame.width):
                 moving = True
                 totalx_movement = 0
                 totaly_movement = 0
@@ -130,7 +151,7 @@ class SpeedCalculator:
             if moving:
                 if not self.stationary[t]:
                     # speed over last 2 frames
-                    s = self.speed_instance(
+                    s = self.__speed_instance(
                         frame.timestamp, self.timestamp[t], self.track_history[t][-1], self.last_point[t]
                     )
                     if t not in self.tracked_id:
@@ -142,9 +163,9 @@ class SpeedCalculator:
             self.timestamp[t] = frame.timestamp
             self.last_point[t] = point
 
-    def speed_instance(self, timestamp1: str, timestamp2: str, p1: Tuple, p2: Tuple) -> float:
+    def __speed_instance(self, timestamp1: str, timestamp2: str, p1: Tuple, p2: Tuple) -> float:
         """
-        Calculates the speed of a object that has travelled between the 2 given points.
+        Calculates the speed of a object that has traveled between the 2 given points.
 
         Args:
             timestamp1: timestamp of the current frame
@@ -162,7 +183,7 @@ class SpeedCalculator:
             s = math.sqrt((abs((p2[0] - p1[0])) ** 2) + ((abs((p2[1] - p1[1]))) ** 2)) / time_diff
             return s
 
-    def check_segment(self, a: Tuple, b: Tuple, c: Tuple) -> bool:
+    def __check_segment(self, a: Tuple, b: Tuple, c: Tuple) -> bool:
         """
         Check to see if point is on segment on line
         """
@@ -175,7 +196,7 @@ class SpeedCalculator:
             return True
         return False
 
-    def orientation(self, a: Tuple, b: Tuple, c: Tuple) -> int:
+    def __orientation(self, a: Tuple, b: Tuple, c: Tuple) -> int:
         """
         Calculate the vector and its orientation in 2D space
         """
@@ -187,7 +208,7 @@ class SpeedCalculator:
         else:
             return 0
 
-    def intersect(self, lineA: Tuple, lineB: Tuple, h: int, w: int) -> bool:
+    def __intersect(self, lineA: Tuple, lineB: Tuple, h: int, w: int) -> bool:
         """
         Calculate if a line intersects area
 
@@ -221,21 +242,21 @@ class SpeedCalculator:
         for i in range(len(lineB)):
             b1 = [lineB[i][0], lineB[i][1]]
             b2 = [lineB[i - 1][0], lineB[i - 1][1]]
-            i1 = self.orientation(lineA[0], lineA[1], b1)
-            i2 = self.orientation(lineA[0], lineA[1], b2)
-            i3 = self.orientation(b1, b2, lineA[0])
-            i4 = self.orientation(b1, b2, lineA[1])
+            i1 = self.__orientation(lineA[0], lineA[1], b1)
+            i2 = self.__orientation(lineA[0], lineA[1], b2)
+            i3 = self.__orientation(b1, b2, lineA[0])
+            i4 = self.__orientation(b1, b2, lineA[1])
 
             if (i1 != i2) and (i3 != i4):  # Main intersect case
                 return True
             # Special cases:
-            if (i1 == 0) and self.check_segment(lineA[0], lineA[1], b1):
+            if (i1 == 0) and self.__check_segment(lineA[0], lineA[1], b1):
                 return True
-            if (i2 == 0) and self.check_segment(lineA[0], b2, b1):
+            if (i2 == 0) and self.__check_segment(lineA[0], b2, b1):
                 return True
-            if (i3 == 0) and self.check_segment(lineA[1], lineA[0], b1):
+            if (i3 == 0) and self.__check_segment(lineA[1], lineA[0], b1):
                 return True
-            if (i4 == 0) and self.check_segment(lineA[1], b1, b2):
+            if (i4 == 0) and self.__check_segment(lineA[1], b1, b2):
                 return True
             return False
 
@@ -244,11 +265,16 @@ class SpeedCalculator:
         Get speed by tracker ID.
 
         Args:
-            t: Tracker ID to get speed for
-            average: Indicating whether to eturn the average or instantaneous speed
+            t: Tracker ID to get speed for.
+            average: Indicates whether to return the average or instantaneous speed. Default is False.
 
         Returns:
-            Speed value in pixels per second, or None when tracker ID is invalid (-1) or not found.
+            Speed value in pixels per second, or None if the tracker ID is invalid (-1) or not found.
+
+        Example:
+            ```python
+            speed = speed_calculator.get_speed(t, average=True)
+            ```
         """
         if t == -1:
             return None
@@ -265,7 +291,21 @@ class SpeedCalculator:
 
 def estimate_angle(k, focus_points, height, width):
     """
-    Calculate the angle of the chosen keypoints
+    Calculates the angle of the chosen keypoints.
+
+    Args:
+        k: Array of keypoints.
+        focus_points: Indices of the keypoints to calculate the angle between.
+        height: Height of the frame.
+        width: Width of the frame.
+
+    Returns:
+        The calculated angle in degrees, or None if any keypoint is at (0.0, 0.0).
+
+    Example:
+        ```python
+        angle = estimate_angle(keypoints, [0, 1, 2], frame.height, frame.width)
+        ```
     """
     p1 = (int((k[focus_points[0]][0]) * width), int((k[focus_points[0]][1]) * height))
     p2 = (int((k[focus_points[1]][0]) * width), int((k[focus_points[1]][1]) * height))
@@ -291,7 +331,12 @@ def calculate_distance(point1: Tuple[float, float], point2: Tuple[float, float])
         point2: Tuple of x and y coordinates for a point
 
     Returns:
-        Euclidean Distance between the 2 points
+        Euclidean distance between the two points.
+
+    Example:
+        ```python
+        distance = calculate_distance((0.0, 0.0), (1.0, 1.0))
+        ```
     """
     return math.sqrt((abs((point2[0] - point1[0])) ** 2) + ((abs((point2[1] - point1[1]))) ** 2))
 
@@ -300,20 +345,20 @@ def calculate_distance_matrix(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     """
     Calculates a pairwise distance matrix between points defined by their x and y coordinates.
 
-    **Example:**
-    ```
-    x = np.array([0, 1, 2])
-    y = np.array([0, 1, 2])
-    distances = calculate_distance_matrix(x, y)
-    ```
-
     Args:
         x: Array of x-coordinates for the points.
         y: Array of y-coordinates for the points.
 
     Returns:
-        np.ndarray: A square matrix where element [i,j] represents the Euclidean distance
+        A square matrix where element [i,j] represents the Euclidean distance
                 between point i and point j. The matrix is symmetric with zeros on the diagonal.
+
+    Example:
+        ```python
+        x = np.array([0, 1, 2])
+        y = np.array([0, 1, 2])
+        distances = calculate_distance_matrix(x, y)
+        ```
     """
     p = np.column_stack((x, y))
     distance_matrix = np.sqrt(((p[:, None, :] - p[None, :, :]) ** 2).sum(axis=2))

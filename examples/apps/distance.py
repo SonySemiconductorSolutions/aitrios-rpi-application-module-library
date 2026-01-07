@@ -37,8 +37,8 @@ with device as stream:
         dist_matrix = calculate_distance_matrix(xc, yc)
 
         # Display distance to each objects
-        indeces = np.triu_indices(len(xc), k=1)
-        for i, j in zip(*indeces):
+        indices = np.triu_indices(len(xc), k=1)
+        for i, j in zip(*indices):
             dist = dist_matrix[i, j]
             p1 = (int(xc[i]), int(yc[i]))
             p2 = (int(xc[j]), int(yc[j]))

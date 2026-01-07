@@ -1,0 +1,232 @@
+name: Docs
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to use (e.g., 1.0.2 or dev)"
+        required: true
+        type: string
+
+env:
+  PYTHON_VERSION: 3.11
+
+jobs:
+  build-modlib:
+    name: Build Modlib
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install project build system requirements (ninja)
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Build distribution files
+        run: |
+          echo "${{ env.PYTHON_VERSION }}" > .python-version
+          uv build
+          ls -al dist
+
+      - name: Check for distribution files
+        run: ls -al dist
+  
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: modlib-package
+          path: |
+            dist/modlib-*.whl
+            dist/modlib-*.tar.gz
+          retention-days: 1
+
+  build-docs:
+    name: Build Docs
+    runs-on: ubuntu-latest
+    needs: [build-modlib]
+    steps:
+      - name: Checkout modlib-docs repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.MODLIB_DOCS_REPO }}
+          token: ${{ secrets.MODLIB_DOCS_PAT }}
+          path: modlib-docs
+          ref: main
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Download distribution artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: modlib-package
+
+      - name: Extract docs
+        run: |
+          rm -rf modlib-docs/docs/src/*
+          mkdir -p modlib-docs/docs/src
+          tar -xzf modlib-*.tar.gz \
+            --wildcards \
+            --strip-components=3 \
+            -C modlib-docs/docs/src \
+            'modlib-*/docs/src/*'
+
+      - name: Build API Reference documentation
+        run: |
+          rm -rf modlib-docs/docs/api/*
+          pushd ./modlib-docs/apigen
+          uv sync
+          uv pip install ../../modlib-*.whl
+          MODLIB_PATH="$(uv pip show modlib | grep Location | cut -d ' ' -f 2)/modlib"
+          uv run main.py --template-dir ./templates --output-dir ../docs/api --skip-errors "$MODLIB_PATH"
+          popd
+
+      - name: Install modlib docs project
+        run: |
+          pushd modlib-docs
+          npm install
+          popd
+
+      - name: Apply version
+        run: ./modlib-docs/scripts/apply_docusaurus_version.sh ${{ github.event.inputs.version }} ./modlib-docs
+
+      # Run dbuild --> to build the documentation without front page
+      # Run postbuild --> to fix file extensions
+      - name: Build documentation
+        run: |
+          pushd modlib-docs
+          npm run dbuild
+          npm run postbuild
+          popd
+
+      - name: Create documents artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs
+          path: modlib-docs/dist
+          retention-days: 1
+
+      # When a version release occurs (!= dev) create a PR with the frozen content to the modlib docs repo 
+      - name: Create modlib-docs PR
+        if: github.event.inputs.version != 'dev'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.MODLIB_DOCS_PAT }}
+          path: modlib-docs
+          commit-message: |
+            docs: Update docs version ${{ github.event.inputs.version }}
+          title: Update docs version ${{ github.event.inputs.version }}
+          body: |
+            This PR updates the frozen content of the docs with version ${{ github.event.inputs.version }}.
+          branch: docs/${{ github.event.inputs.version }}/${{ github.run_id }}
+          base: main
+          labels: documentation, automated-pr
+    
+  build-llms:
+    name: Build LLMs
+    runs-on: ubuntu-latest
+    needs: [build-modlib]
+    steps:
+      - name: Checkout modlib-docs repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.MODLIB_DOCS_REPO }}
+          token: ${{ secrets.MODLIB_DOCS_PAT }}
+          path: modlib-docs
+          ref: main
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Download distribution artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: modlib-package
+
+      - name: Extract examples
+        run: |
+          rm -rf modlib-examples/*
+          mkdir -p modlib-examples
+          tar -xzf modlib-*.tar.gz \
+            --wildcards \
+            --anchored \
+            --strip-components=2 \
+            -C modlib-examples \
+            --exclude='*/docs/*' \
+            'modlib-*/examples/*'
+          ls -al modlib-examples
+
+      - name: LLM txt generation
+        run: |
+          rm -f modlib-docs/docs/llms.txt
+          pushd ./modlib-docs/llmgen
+          uv sync
+          uv pip install ../../modlib-*.whl
+          uv run main.py --template-dir ./templates --output-dir ../docs -e ../../modlib-examples
+          popd
+
+      - name: Create LLM txt artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: llms
+          path: modlib-docs/docs/llms.txt
+          retention-days: 1
+
+  push-docs:
+    name: Create PR
+    runs-on: ubuntu-latest
+    needs: [build-docs, build-llms]
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download docs artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docs
+          path: dist
+
+      - name: Download LLMs artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: llms
+          path: dist-llms
+
+      - name: Prepare docs content (preserve ./docs/src)
+        shell: bash
+        run: |
+          set -euo pipefail
+          find docs -mindepth 1 -maxdepth 1 ! -name src -exec rm -rf {} +
+          cp -a dist/. docs/
+          cp -a dist-llms/llms.txt docs/llms.txt
+          rm -rf dist-llms dist
+
+      - name: Verify content
+        run: ls -al docs
+
+      - name: Create Pull Request with docs changes
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            docs: Update docs version ${{ github.event.inputs.version }}
+          title: Update docs version ${{ github.event.inputs.version }}
+          body: |
+            This PR replaces the contents of `./docs` with the built documentation from the `modlib-docs/dist` artifact while preserving `./docs/src`.
+          branch: docs/${{ github.event.inputs.version }}/${{ github.run_id }}
+          base: ${{ github.ref_name }}
+          labels: documentation, automated-pr

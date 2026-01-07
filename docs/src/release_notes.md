@@ -1,10 +1,32 @@
 ---
 title: Release Notes
-sidebar_position: 5
+sidebar_position: 6
 ---
 
 
 # Release Notes 🚀
+
+## Modlib 1.3.0
+
+### ⭐ **New Features**
+
+- **AiCamera on Debian Trixie support**: Extended compatibility to support Debian Trixie, enabling users to run AiCamera on the latest Debian stable release.
+- **Python 3.11, 3.12, 3.13 support**: Expanded Python version compatibility to include Python 3.11, 3.12, and 3.13. Note: AiCamera still requires the system python version.
+- **llms.txt documentation format**: Include the llms.txt format, enabling Large Language Models (LLMs) and AI coding assistants to better understand and work with modlib's API. This includes improved docstrings throughout the codebase for better API reference documentation.
+- **Threading example**: New example (`examples/apps/threads.py`) demonstrating how to use Python threading with modlib devices. It shows how to perform background tasks concurrently while processing frames from the device stream.
+- **`InstanceSegmentation` and `Segment` result split**: Separated semantic segmentation (`Segments`) and instance segmentation (`InstanceSegments`) into distinct result types. `Segments` provides pixel-level semantic segmentation masks, while `InstanceSegments` includes instance-level masks with bounding boxes, class IDs, and confidence scores.
+
+
+### 🐛 **Bug Fixes**
+
+- **Fix Triton® Port issue**: Resolved communication port issues with the Triton® Smart Camera device that could cause connection failures or errors during device initialization and model deployment.
+
+
+### 📦 **Distribution & Infrastructure**
+
+- **PyPI Release**: First official release of modlib on PyPI, making it easier for users to install and manage the library through standard Python package management tools (`pip install`).
+- **Improved Docs action workflow**: Improved GitHub Actions workflow for docs generation with automatic versioning and auto `llms.txt` file generation.
+
 
 ## Modlib 1.2.0
 

@@ -29,7 +29,7 @@ from typing import List, Tuple
 import numpy as np
 
 from modlib.devices.frame import Frame
-from modlib.models import Detections, Poses, Segments
+from modlib.models import Detections, Poses, InstanceSegments
 
 from .basetrack import BaseTrack, TrackState
 from .kalman_filter import KalmanFilter
@@ -227,7 +227,7 @@ class BYTETracker(object):
 
         Args:
             args: Arguments for the BYTETracker
-            frame_rate: Exected frame rate of the camera feed.
+            frame_rate: Executed frame rate of the camera feed.
         """
         self.tracked_stracks = []  # type: list[STrack]
         self.lost_stracks = []  # type: list[STrack]
@@ -243,7 +243,7 @@ class BYTETracker(object):
 
     def update(self, frame: Frame, detections: Detections) -> Detections:
         """
-        BYTETracker update functionality reponsible for tracking of objects across frames.
+        BYTETracker update functionality responsible for tracking of objects across frames.
         It updates the given detection with a unique tracker ID.
 
         Args:
@@ -256,20 +256,14 @@ class BYTETracker(object):
         if (
             not isinstance(detections, Detections)
             and not isinstance(detections, Poses)
-            and not isinstance(detections, Segments)
+            and not isinstance(detections, InstanceSegments)
         ):
-            raise ValueError("Input `detections` should be of type Detections, Poses, or Segments")
+            raise ValueError("Input `detections` should be of type Detections, Poses, or InstanceSegments")
 
         tracks = self._update(_to_tracker(detections, frame.height, frame.width))
         detections.tracker_id = _match_detections_with_tracks(detections, tracks)
 
         return detections
-
-    def get_stracks_boxes(self):
-        tracked = _tracks2boxes(tracks=self.tracked_stracks)
-        lost = _tracks2boxes(tracks=self.lost_stracks)
-        removed = _tracks2boxes(tracks=self.removed_stracks)
-        return (tracked, lost, removed)
 
     def _update(self, result):
         output_results = result.output_results

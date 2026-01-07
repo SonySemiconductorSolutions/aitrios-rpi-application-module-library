@@ -33,7 +33,7 @@ import numpy as np
 
 from modlib.apps.area import Area
 from modlib.devices.frame import IMAGE_TYPE, Frame
-from modlib.models import Detections, Poses, Segments
+from modlib.models import Detections, Poses, Segments, InstanceSegments
 
 DEFAULT_COLOR_PALETTE = [
     "#FFCC14",
@@ -81,12 +81,40 @@ def _validate_color_hex(color_hex: str):
 @dataclass
 class Color:
     """
-    Represents a color in RGB format.
+    Represents a color in RGB format. Used for specifying colors in annotations.
     """
 
     r: int  #: Red channel.
     g: int  #: Green channel.
     b: int  #: Blue channel.
+    
+    def __init__(self, r: int, g: int, b: int):
+        """
+        Initialize a color in RGB format. Used for specifying colors in annotations.
+        Args:
+            r: Red channel value (0-255).
+            g: Green channel value (0-255).
+            b: Blue channel value (0-255).
+
+        Example usage:
+            ```
+            from modlib.apps.annotator import Annotator, Color
+            frame.image = annotator.annotate_boxes(
+                    frame=frame,
+                    detections=matched_people,
+                    labels=m_labels,
+                    color=Color(0, 255, 0),
+                    alpha = 0.2,
+                )
+            ```
+        """
+        if not all(isinstance(c, int) for c in (r, g, b)):
+            raise ValueError("Color channels must be integers")
+        if not all(0 <= c <= 255 for c in (r, g, b)):
+            raise ValueError("Color channels must be between 0 and 255")
+        self.r = r
+        self.g = g
+        self.b = b
 
     @classmethod
     def from_hex(cls, color_hex: str) -> Color:
@@ -180,7 +208,7 @@ class Color:
 
 @dataclass
 class ColorPalette:
-    colors: List[Color]
+    colors: List[Color]  #: List of colors in the palette.
 
     @classmethod
     def default(cls) -> ColorPalette:
@@ -262,10 +290,10 @@ class Annotator:
 
     def __init__(
         self,
-        color: Union[Color, ColorPalette] = ColorPalette.default(),
+        color: Union[Color, ColorPalette] = ColorPalette.default(), 
         thickness: int = 2,
         text_scale: float = 0.5,
-        text_thickness: int = 1,
+        text_thickness: int = 1, 
         text_padding: int = 10,
     ):
         self.color: Union[Color, ColorPalette] = color
@@ -289,25 +317,31 @@ class Annotator:
         Draws bounding boxes on the frame using the detections provided.
 
         Args:
-            frame: The frame to annotate.
-            detections: The detections for which the bounding boxes will be drawn
-            labels: An optional list of labels corresponding to each detection.
-                If `labels` are not provided, corresponding `class_id` will be used as label.
-            skip_label: Is set to `True`, skips bounding box label annotation.
-            color: RGB value for bounding box edges and filling.
-            alpha: The float value between 0.0 and 1.0 to set the transparency of the filling color.
-            corner_radius: The value to set the radius of the corner of the bounding boxes.
-            corner_length: The value to set the length of the corner of the bounding boxes. Only used if `corner_radius` is 0.
+            frame: The frame to annotate, must be of type `Frame` from `modlib.devices`.
+            detections: The detections to draw bounding boxes for, must be of type `Detections`, `Poses`, or `Segments` from `modlib.models.results`.
+            labels: A list of labels for each detection. Defaults to `None`, in which case `class_id` is used.
+            skip_label: Whether to skip drawing labels on the bounding boxes. Defaults to `False`.
+            color: RGB color for bounding box edges and fill. Defaults to `None`.
+            alpha: Transparency of the bounding box fill, between 0.0 and 1.0. Defaults to 0.5.
+            corner_radius: Radius of the corners of the bounding boxes. Defaults to 0.
+            corner_length: Length of the corners if `corner_radius` is 0. Defaults to 10.
 
         Returns:
-            The annotated frame.image with bounding boxes.
+            The annotated frame image.
+
+        Example:
+            ```python
+            annotator.annotate_boxes(frame, detections, labels=["Person", "Car"], alpha=0.7)
+            ```
         """
         if (
             not isinstance(detections, Detections)
             and not isinstance(detections, Poses)
-            and not isinstance(detections, Segments)
+            and not isinstance(detections, InstanceSegments)
         ):
-            raise ValueError("Input `detections` should be of type Detections, Poses, or Segments that contain bboxes")
+            raise ValueError(
+                "Input `detections` should be of type Detections, Poses, or InstanceSegments that contain bboxes"
+            )
 
         # NOTE: Compensating for any introduced modified region of interest (ROI)
         # to ensure that detections are displayed correctly on top of the current `frame.image`.
@@ -326,7 +360,7 @@ class Annotator:
                 int(y2 * h),
             )
 
-            if isinstance(detections, Detections) or isinstance(detections, Segments):
+            if isinstance(detections, Detections) or isinstance(detections, InstanceSegments):
                 class_id = detections.class_id[i] if detections.class_id is not None else None
                 idx = class_id if class_id is not None else i
             else:  # Poses
@@ -337,7 +371,7 @@ class Annotator:
             else:
                 c = color
 
-            # Draw rectange with possible rounded edges and infil
+            # Draw rectangle with possible rounded edges and infill
             self.rounded_rectangle(
                 frame.image,
                 x1,
@@ -377,22 +411,21 @@ class Annotator:
         alpha: float = None,
         corner_radius: int = 0,
         corner_length: int = 0,
-    ) -> None:
+    ):
         """
-        Args:
-            image : The input image as a NumPy array.
-            x1 : The x-coordinate of the top-left corner of the crop.
-            y1 : The y-coordinate of the top-left corner of the crop.
-            x2 : The x-coordinate of the bottom-right corner of the crop.
-            y2 : The y-coordinate of the bottom-right corner of the crop.
-            color: BGR value for bounding box edges and filling.
-            thickness: The thickness of the edges of the rectangle
-            alpha: The float value between 0.0 and 1.0 to set the transparency of the filling color.
-            corner_radius: The value to set the radius of the corner of the bounding boxes.
-            corner_length: The value to set the length of the corner of the bounding boxes. Only used if `corner_radius` is 0.
+        Draws a rectangle with possible rounded edges and infill.
 
-        Returns:
-            None
+        Args:
+            image: The input image as a NumPy array.
+            x1: X-coordinate of the top-left corner of the rectangle.
+            y1: Y-coordinate of the top-left corner of the rectangle.
+            x2: X-coordinate of the bottom-right corner of the rectangle.
+            y2: Y-coordinate of the bottom-right corner of the rectangle.
+            color: BGR color for bounding box edges and fill.
+            thickness: Thickness of the rectangle edges. Defaults to 2.
+            alpha: Transparency of the rectangle fill, between 0.0 and 1.0. Defaults to 0.5.
+            corner_radius: Radius of the rectangle corners. Defaults to 5.
+            corner_length: Length of the rectangle corners if `corner_radius` is 0. Defaults to 10.
         """
 
         inner_pts = [
@@ -457,13 +490,19 @@ class Annotator:
         Draws a shape on the frame using the area containing points.
 
         Args:
-            frame: The frame on which the area will be drawn. Must contain `frame.image`
-            area: The area of a shape to draw on frame
-            color: Tuple containing BGR value of the area
-            alpha: The float value between 0.0 and 1.0 to set the transparency of the filling color.
+            frame: The frame to annotate, must be of type `Frame` from `modlib.devices`.
+            area: The area to draw, must be of type `Area` from `modlib.apps`.
+            color: BGR color for the area.
+            label: The text to display on the area.
+            alpha: Transparency of the area fill, between 0.0 and 1.0. Defaults to 0.5.
 
         Returns:
-            The image with the area annotated.
+            The annotated frame image.
+
+        Example:
+            ```python
+            annotator.annotate_area(frame, area, color=(0, 255, 0), alpha=0.5)
+            ```
         """
         h, w, _ = frame.image.shape
         resized_points = np.empty(area.points.shape, dtype=np.int32)
@@ -492,11 +531,16 @@ class Annotator:
         Draws text labels on the frame with background using the provided text and position.
 
         Args:
-            image: The image to annotate from Frame.
-            x: x coordinate for label position
-            y: y coordinate for label position
-            color: BGR value of background color
-            label: text to be placed on frame
+            image: The image to annotate, must be a NumPy array.
+            x: X-coordinate for the label position.
+            y: Y-coordinate for the label position.
+            color: BGR color for the label background.
+            label: The text to display.
+
+        Example:
+            ```python
+            annotator.set_label(image, x=50, y=50, color=(255, 0, 0), label="Example Label")
+            ```
         """
 
         # Calculate text size
@@ -540,14 +584,19 @@ class Annotator:
 
     def annotate_segments(self, frame: Frame, segments: Segments) -> np.ndarray:
         """
-        Draws segmentation areas on the frame using the provided segments.
+        Draws segmentation areas on the frame using the provided segments. 
 
         Args:
-            frame: The frame to annotate.
-            segments: The segments defining the areas that will be drawn on the image.
+            frame: The frame to annotate, must be of type `Frame` from `modlib.devices`.
+            segments: The segments defining the areas that will be drawn on the image, must be of type `Segments` from `modlib.models.results`.
 
         Returns:
-            The annotated frame.image
+            The annotated frame image.
+
+        Example:
+            ```python
+            annotator.annotate_segments(frame, segments)
+            ```
         """
 
         if not isinstance(segments, Segments):
@@ -561,7 +610,7 @@ class Annotator:
         h, w, _ = frame.image.shape
         overlay = np.zeros((h, w, 4), dtype=np.uint8)
 
-        for i in segments.indeces:
+        for i in segments.indices:
             mask = segments.get_mask(i)
             c = self.color.by_idx(i) if isinstance(self.color, ColorPalette) else self.color
             colour = [(0, 0, 0, 0), (*c.as_bgr(), 255)]
@@ -576,7 +625,7 @@ class Annotator:
     def annotate_oriented_boxes(
         self,
         frame: Frame,
-        segments: Segments,
+        instance_segments: InstanceSegments,
         labels: Optional[List[str]] = None,
         skip_label: bool = False,
         color: Union[Color, ColorPalette] = None,
@@ -585,36 +634,40 @@ class Annotator:
         Draws orientated bounding boxes on the frame using the detections provided.
 
         Args:
-            frame: The frame to annotate.
-            segments: The boxes calculated from instance segments for which the bounding boxes will be drawn
-            labels: An optional list of labels corresponding to each detection.
-                If `labels` are not provided, corresponding `class_id` will be used as label.
-            skip_label: Is set to `True`, skips bounding box label annotation.
-            color: RGB value for bounding box edges and filling.
+            frame: The frame to annotate, must be of type `Frame` from `modlib.devices`.
+            instance_segments: The oriented bounding box data, must be of type `InstanceSegments` from `modlib.models.results`.
+            labels: A list of labels for each detection. Defaults to `None`, in which case `class_id` is used.
+            skip_label: Whether to skip drawing labels on the bounding boxes. Defaults to `False`.
+            color: RGB color for bounding box edges and fill. Defaults to `None`.
 
         Returns:
             The annotated frame.image with orientated bounding boxes.
         """
+        if not isinstance(instance_segments, InstanceSegments):
+            raise ValueError("Instance segments must be of type InstanceSegments.")
         if frame.image_type != IMAGE_TYPE.INPUT_TENSOR:
-            segments.compensate_for_roi(frame.roi)
+            instance_segments.compensate_for_roi(frame.roi)
 
-        for i in range(len(segments)):
-            bbox = segments.oriented_bboxes[i]
-
-            if isinstance(segments, Segments):
-                class_id = segments.class_id[i] if segments.class_id is not None else None
-                idx = class_id if class_id is not None else i
+        for i in range(len(instance_segments)):
+            bbox = instance_segments.bbox[i]
+            class_id = instance_segments.class_id[i] if instance_segments.class_id is not None else None
+            idx = class_id if class_id is not None else i
 
             if color is None:
                 c = self.color.by_idx(idx) if isinstance(self.color, ColorPalette) else self.color
             else:
                 c = color
 
+            # Rescaling to frame size
+            bbox[:, 0] *= frame.width
+            bbox[:, 1] *= frame.height
+            bbox = bbox.astype(np.int32)
+
             cv2.drawContours(frame.image, [bbox], 0, c.as_bgr(), 2)
 
             if skip_label:
                 continue
-            label = f"{class_id}" if (labels is None or len(segments) != len(labels)) else labels[i]
+            label = f"{class_id}" if (labels is None or len(instance_segments) != len(labels)) else labels[i]
             self.set_label(
                 image=frame.image,
                 x=bbox[0][0] - math.ceil(self.thickness / 2),
@@ -624,32 +677,29 @@ class Annotator:
             )
         return frame.image
 
-    def annotate_instance_segments(self, frame: Frame, segments: Segments) -> np.ndarray:
+    def annotate_instance_segments(self, frame: Frame, instance_segments: InstanceSegments) -> np.ndarray:
         """
-        Draws instance segmentation areas on the frame using the provided segments.
+        Draws instance segmentation areas on the frame using the provided instance segments.
 
         Args:
-            frame: The frame to annotate.
-            segments: The segments defining the areas that will be drawn on the image.
-            original_mask: Boolean value that decides to use the original mask or instance segmetation output mask for visualization
+            frame: The frame to annotate, must be of type `Frame` from `modlib.devices`.
+            instance_segments: The instance segments defining the areas to draw, must be of type `InstanceSegments` from `modlib.models.results`.
 
         Returns:
             The annotated frame.image
         """
+
+        if not isinstance(instance_segments, InstanceSegments):
+            raise ValueError("Instance segments must be of type InstanceSegments.")
+        if frame.image_type != IMAGE_TYPE.INPUT_TENSOR:
+            instance_segments.compensate_for_roi(frame.roi)
+
         h, w, _ = frame.image.shape
         overlay = np.zeros((h, w, 4), dtype=np.uint8)
-        # NOTE: Compensating for any introduced modified region of interest (ROI)
-        # to ensure that detections are displayed correctly on top of the current `frame.image`.
-        if frame.image_type != IMAGE_TYPE.INPUT_TENSOR:
-            segments.compensate_for_roi(frame.roi)
-        if len(np.array(segments.mask).shape) == 3:
-            masks = segments.mask
-        else:
-            masks = segments.instance_masks
 
-        for i in range(len(segments)):
-            mask = masks[i]
-            c = self.color.by_idx(segments.class_id[i]) if isinstance(self.color, ColorPalette) else self.color
+        for i in range(len(instance_segments)):
+            mask = instance_segments.mask[i]
+            c = self.color.by_idx(instance_segments.class_id[i]) if isinstance(self.color, ColorPalette) else self.color
             colour = [(0, 0, 0, 0), (*c.as_bgr(), 255)]
             overlay_i = np.array(colour)[mask].astype(np.uint8)
             overlay += cv2.resize(overlay_i, (w, h))
@@ -684,21 +734,25 @@ class Annotator:
         keypoint_score_threshold: Optional[float] = 0.5,
     ) -> np.ndarray:
         """
-        Draws skeletons on the frame using the provided poses.
+        Draws the skeletons on the frame using the provided poses.
 
         Args:
-            frame: The frame to annotate.
-            poses: The detections defining the skeletons that will be drawn on the image.
+            frame: The frame to annotate, must be of type `Frame` from `modlib.devices`.
+            poses: The detections defining the skeletons that will be drawn on the image, must be of type `Poses` from `modlib.models.results`.
             num_keypoints: The number of unique keypoints in the poses object.
-            skeleton: Edge between the keypoints that make up the skeleton to annotate.
+            skeleton: Edges between the keypoints that make up the skeleton to annotate. Defaults to `None`.
             keypoint_radius: The radius of the keypoints to be drawn. Defaults to 3.
-            keypoint_color: The color of the keypoints. Defaults to green.
-            line_color: The color of the lines connecting keypoints. Defaults to yellow.
-            keypoint_score_threshold: The minimum score threshold for keypoints to be drawn.
-                Keypoints with a score below this threshold will not be drawn. Defaults to 0.5.
+            keypoint_color: The color of the keypoints. Defaults to green `(0, 255, 0)`.
+            line_color: The color of the lines connecting keypoints. Defaults to yellow `(255, 255, 0)`.
+            keypoint_score_threshold: The minimum score threshold for keypoints to be drawn. Keypoints with a score below this threshold will not be drawn. Defaults to 0.5.
 
         Returns:
-            The annotated frame.image
+            The annotated frame image.
+
+        Example:
+            ```python
+            frame.image = annotator.annotate_keypoints(frame=frame, poses=poses)
+            ```
         """
 
         if not isinstance(poses, Poses):
@@ -745,13 +799,18 @@ class Annotator:
         Crop a rectangular region from an image.
 
         Args:
-            image : The input image as a NumPy array.
-            x1 : The x-coordinate of the top-left corner of the crop.
-            y1 : The y-coordinate of the top-left corner of the crop.
-            x2 : The x-coordinate of the bottom-right corner of the crop.
-            y2 : The y-coordinate of the bottom-right corner of the crop.
+            image: The input image as a NumPy array.
+            x1: The x-coordinate of the top-left corner of the crop.
+            y1: The y-coordinate of the top-left corner of the crop.
+            x2: The x-coordinate of the bottom-right corner of the crop.
+            y2: The y-coordinate of the bottom-right corner of the crop.
 
         Returns:
             The cropped region of the image.
+
+        Example:
+            ```python
+            cropped_image = annotator.crop(frame.image, x1=50, y1=50, x2=200, y2=200)
+            ```
         """
         return image[y1:y2, x1:x2]

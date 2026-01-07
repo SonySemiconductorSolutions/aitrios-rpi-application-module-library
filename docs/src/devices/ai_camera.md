@@ -38,22 +38,20 @@ sudo reboot
 ### 3) Verify your setup
 
 If you haven't already done so, make sure to install modlib (in your virtual environment).
-(Optional) Create and enable a virtual environment.
-**Required Python version: 3.11**
+The RPi AI Camera requires the **system Python version** to interface with libcamera. (Verify by running `/usr/bin/python3 -V`). This depends on your platform.
+- Raspberry Pi OS Bookworm: **Python 3.11**
+- Raspberry Pi OS Trixie: **Python 3.13**  
 
 ```shell
 python -m venv .venv
 source .venv/bin/activate
 ```
+Make sure that the python version of the virtual environment is the same as the system Python version. (`/usr/bin/python3 -V`)  
 
 One can use pip to install the library in your project Python environment.
 ```shell
-pip install git+https://github.com/SonySemiconductorSolutions/aitrios-rpi-application-module-library.git
+pip install modlib
 ```
-
-:::warning  
-We are currently working on publishing modlib to the PyPI index. This will make it easier for developers to install and manage the library using pip and allow for a more streamlined setup process. Stay tuned for updates!
-:::
 
 Let's verify that our camera is connected and the Application Module Library is installed correctly.  
 Create a new Python file named `hello_world.py`. and run the following code to see a camera preview.

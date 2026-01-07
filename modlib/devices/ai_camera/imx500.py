@@ -109,7 +109,7 @@ class IMX500:
         Retrieve the unique IMX500 device ID.
 
         Returns:
-            str | None: The device ID as an ASCII string if successful, otherwise None.
+            The device ID as an ASCII string if successful, otherwise None.
         """
         ret = None
         imx500_device_id = ""

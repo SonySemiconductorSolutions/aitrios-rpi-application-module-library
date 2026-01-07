@@ -36,14 +36,9 @@ class Heatmap(object):
     ```
     """
 
-    cell_size: int
+    cell_size: int  #: Cell size that determines the heatmaps resolution
 
     def __init__(self, cell_size: int = 20) -> None:
-        """ "
-        Args:
-            cell_size: determins the heatmaps resolution
-        """
-
         if not isinstance(cell_size, int):
             raise ValueError("Cell size must be of type 'int'")
 
@@ -191,6 +186,7 @@ class Heatmap(object):
             heat_matrix: input 2D array to be resized.
             target_height: desired height of the output array.
             target_width: desired width of the output array.
+            cell_size: cell size of the heatmap.
             interpolation_function: function to be used for interpolation.
 
         Returns:

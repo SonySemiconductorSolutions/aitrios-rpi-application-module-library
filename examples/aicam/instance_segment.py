@@ -38,13 +38,12 @@ annotator = Annotator()
 
 with device as stream:
     for frame in stream:
-        detections = frame.detections
-        if frame.image_type != IMAGE_TYPE.INPUT_TENSOR:
-            detections.compensate_for_roi(frame.roi)
-        instance_masks = detections.instance_segmentation(frame.width, frame.height, InstanceSegArgs)
-        oriented_bboxes = detections.oriented_bbox()
+        detections = frame.detections.to_instance_segments(InstanceSegArgs)
 
-        labels = [f"Class: {c}" for c, _, _, _ in detections]
-        annotator.annotate_instance_segments(frame, detections)
+        labels = [f"{model.labels[c]}" for _, c, _, _, _ in detections]
+        
+        detections.bbox = detections.oriented_bbox()
         annotator.annotate_oriented_boxes(frame, detections, labels)
+        annotator.annotate_instance_segments(frame, detections)
+    
         frame.display()

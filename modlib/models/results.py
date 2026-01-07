@@ -16,6 +16,7 @@
 
 import base64
 import gzip
+import copy
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
 from typing import Iterator, List, Tuple, Union
@@ -30,10 +31,10 @@ class ROI:
     Region of Interest (ROI) specifying the bounding box coordinates.
     """
 
-    left: float
-    top: float
-    width: float
-    height: float
+    left: float  #: The x-coordinate of the ROI normalized to the width of the frame.
+    top: float  #: The y-coordinate of the ROI normalized to the height of the frame.
+    width: float  #: The width of the ROI normalized to the width of the frame.
+    height: float  #: The height of the ROI normalized to the height of the frame.
 
     def json(self) -> dict:
         """
@@ -52,6 +53,9 @@ class ROI:
         return (self.left, self.top, self.width, self.height)[index]
 
     def __iter__(self):
+        """
+        Iterates over the ROI. (left, top, width, height)
+        """
         return iter((self.left, self.top, self.width, self.height))
 
 
@@ -66,6 +70,9 @@ class Result(ABC):
         Abstract method responsible for aligning the current detection type with
         the corresponding `frame.image`. One needs guarantee the resulting detections
         are compensated for any possible ROI that may be applied.
+
+        Args:
+            roi: The ROI (normalized - left, top, width, height) to compensate for.
         """
         pass
 
@@ -118,7 +125,7 @@ class Classifications(Result):
         """
         return len(self.class_id)
 
-    def __copy__(self):
+    def __copy__(self) -> "Classifications":
         """
         Returns a copy of the current detections.
         """
@@ -128,7 +135,7 @@ class Classifications(Result):
 
         return new_instance
 
-    def copy(self):
+    def copy(self) -> "Classifications":
         """
         Returns a copy of the current detections.
         """
@@ -256,6 +263,12 @@ class Detections(Result):
         self._roi_compensated = False
 
     def compensate_for_roi(self, roi: ROI):
+        """
+        Compensate the bounding boxes for the given ROI.
+
+        Args:
+            roi: The ROI (normalized - left, top, width, height) to compensate for.
+        """
         if roi == (0, 0, 1, 1) or self._roi_compensated:
             return
 
@@ -272,7 +285,7 @@ class Detections(Result):
         """
         return len(self.class_id)
 
-    def __copy__(self):
+    def __copy__(self) -> "Detections":
         """
         Returns a copy of the current detections.
         """
@@ -281,10 +294,10 @@ class Detections(Result):
         new_instance.confidence = np.copy(self.confidence)
         new_instance.class_id = np.copy(self.class_id)
         new_instance.tracker_id = np.copy(self.tracker_id)
-
+        new_instance._roi_compensated = copy.deepcopy(self._roi_compensated)
         return new_instance
 
-    def copy(self):
+    def copy(self) -> "Detections":
         """
         Returns a copy of the current detections.
         """
@@ -311,6 +324,9 @@ class Detections(Result):
         return res
 
     def __iter__(self) -> Iterator[Tuple[np.ndarray, float, int, int]]:
+        """
+        To iterate over the detections.
+        """
         for i in range(len(self)):
             yield (
                 self.bbox[i],
@@ -458,6 +474,12 @@ class Poses(Result):
         self._roi_compensated = False
 
     def compensate_for_roi(self, roi: ROI):
+        """
+        Compensate the keypoints and bounding boxes for the given ROI.
+
+        Args:
+            roi: The ROI (normalized - left, top, width, height) to compensate for.
+        """
         if roi == (0, 0, 1, 1) or self._roi_compensated or self.keypoints.size == 0:
             return
 
@@ -495,6 +517,9 @@ class Poses(Result):
         self._bbox = value
 
     def __iter__(self) -> Iterator[Tuple[np.ndarray, float, np.ndarray, int]]:
+        """
+        To iterate over the detections. 
+        """
         for i in range(len(self)):
             yield (
                 self.keypoints[i],
@@ -549,7 +574,7 @@ class Poses(Result):
         """
         return self.n_detections
 
-    def __copy__(self):
+    def __copy__(self) -> "Poses":
         """
         Returns a copy of the current detections.
         """
@@ -560,10 +585,10 @@ class Poses(Result):
         new_instance.tracker_id = np.copy(self.tracker_id)
         if self._bbox is not None:
             new_instance._bbox = np.copy(self._bbox)
-
+        new_instance._roi_compensated = copy.deepcopy(self._roi_compensated)
         return new_instance
 
-    def copy(self):
+    def copy(self) -> "Poses":
         """
         Returns a copy of the current detections.
         """
@@ -626,47 +651,28 @@ class Segments(Result):
     Data class for segmentation results.
     """
 
-    mask: np.ndarray  #: Mask arrays containing the id for each identified segment.
+    mask: np.ndarray  #: 2D Mask arrays containing the id for each identified segment in the input tensor.
 
-    def __init__(self, mask: np.ndarray = np.empty((0,)), _bbox=None, confidence=None, class_id=None):
-        self.mask = mask
-        self._bbox = _bbox
-        self.class_id = class_id
-        self.confidence = confidence
-        self.oriented_bboxes = None
-        self.instance_masks = None
-        self.instance_args = None
-        self.tracker_id = None
-
+    def __init__(self, mask: np.ndarray = np.empty((0,))):
+        self.mask = mask.astype(np.uint8)
         self._roi_compensated = False
 
     def compensate_for_roi(self, roi: ROI):
+        """
+        Compensate the segmentation mask for the given ROI.
+
+        Args:
+            roi: The ROI (normalized - left, top, width, height) to compensate for.
+        """
         if roi == (0, 0, 1, 1) or self._roi_compensated:
             return
 
-        # initialize as background values and place mask(s) at ROI offset
-        if self.mask.ndim == 3:
-            channels, h, w = self.mask.shape
-            start_h, start_w = int(roi[1] * h / roi[3]), int(roi[0] * w / roi[2])
-            new_masks = np.zeros((channels, int(h / roi[3]), int(w / roi[2])), dtype=self.mask.dtype)
-            new_masks[:, start_h : start_h + h, start_w : start_w + w] = self.mask
-            self.mask = new_masks
-        
-        elif self.mask.ndim == 2:
+        if self.mask.size > 0:
             h, w = self.mask.shape
             start_h, start_w = int(roi[1] * h / roi[3]), int(roi[0] * w / roi[2])
-            new_masks = -np.ones((int(h / roi[3]), int(w / roi[2])), dtype=self.mask.dtype)
+            new_masks = np.zeros((int(h / roi[3]), int(w / roi[2])), dtype=self.mask.dtype)
             new_masks[start_h : start_h + h, start_w : start_w + w] = self.mask
             self.mask = new_masks
-        
-        else:
-            raise ValueError("Mask must be 2D or 3D")
-
-        if self._bbox is not None:
-            self._bbox[:, 0] = roi[0] + self._bbox[:, 0] * roi[2]
-            self._bbox[:, 1] = roi[1] + self._bbox[:, 1] * roi[3]
-            self._bbox[:, 2] = roi[0] + self._bbox[:, 2] * roi[2]
-            self._bbox[:, 3] = roi[1] + self._bbox[:, 3] * roi[3]
 
         self._roi_compensated = True
 
@@ -675,204 +681,27 @@ class Segments(Result):
         """
         The number found segments, while ignore the background.
         """
-        return len(self.indeces)
+        return len(self.indices)
 
     @property
-    def indeces(self) -> List[int]:
+    def indices(self) -> List[int]:
         """
-        Found indeces in the mask and ignore the background (id: -1).
+        Found indices in the mask and ignore the background (id: 0).
         """
         found_indices = np.unique(self.mask)
-        return found_indices[found_indices != -1]
+        return found_indices[found_indices != 0]
 
-    def get_mask(self, id: int):
+    def get_mask(self, id: int) -> np.ndarray:
         """
-        Returns the mask of a specific index.
+        Returns the binary mask of a specific index.
+
+        Args:
+            id: The index of the mask to return.
+
+        Returns:
+            A numpy array of shape (h, w) representing the mask of the specified index.
         """
         return (self.mask == id).astype(np.uint8)
-
-    def instance_segmentation(self, width: int, height: int, instance_args: object):
-        """
-        Perform connected component analysis on a semantic segmentation mask to provide instance segmentation
-        masks. Applies a watershed algorithm to CCA output to improve the results that are connected
-
-        Parameters:
-        instance_args: Arguments for instance_segmentation
-
-        Returns:
-        list: A list of binary masks, where each mask represents a single instance.
-        """
-        self.w = width
-        self.h = height
-
-        if self.instance_args is None:
-            if instance_args is None:
-                raise ValueError("Input default 'instance_args' to run CCA")
-            self.instance_args = instance_args
-
-        segmentation_mask = np.where(self.mask == -1, 0, self.mask)
-        self.instance_masks = []
-        self.visual_masks = []
-        self.class_id = []
-
-        # Extract unique class labels from the mask
-        class_labels = np.unique(segmentation_mask)
-        class_labels = class_labels[class_labels != 0]  # Exclude background (label 0)
-
-        # Perform CCA and Watershed for each class label
-        for class_label in class_labels:
-            # Create a binary mask for the current class
-            binary_mask = (segmentation_mask == class_label).astype(np.uint8)
-
-            # Label connected components in the binary mask using OpenCV
-            num_labels, labeled_mask = cv2.connectedComponents(binary_mask)
-            labeled_mask = labeled_mask + 1
-            E_kernel = np.ones((self.instance_args.erosion_kernel, self.instance_args.erosion_kernel), np.uint8)
-            D_kernel = np.ones((self.instance_args.dilate_kernel, self.instance_args.dilate_kernel), np.uint8)
-            opening = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, E_kernel, iterations=2)
-
-            sure_bg = cv2.dilate(opening, D_kernel, iterations=self.instance_args.dilate_iteration)
-            # Improve results with the Watershed algorithm
-            # Step 1: Compute the distance transform
-            dist_transform = cv2.distanceTransform(opening, cv2.DIST_L2, 5)
-
-            # Step 2: Normalize the distance transform
-            dist_transform = cv2.normalize(dist_transform, None, 0, 1.0, cv2.NORM_MINMAX)
-
-            # Step 3: Threshold the distance transform to obtain markers
-            _, sure_fg = cv2.threshold(
-                dist_transform, self.instance_args.dist_threshold * dist_transform.max(), 255, cv2.THRESH_BINARY
-            )
-            sure_fg = np.uint8(sure_fg)
-
-            sure_fg = cv2.erode(sure_fg, E_kernel, iterations=self.instance_args.erosion_iteration)
-
-            unknown = cv2.subtract(sure_bg, sure_fg)
-
-            # Step 4: Perform connected components on the markers
-            _, markers = cv2.connectedComponents(sure_fg)
-            # Step 5: Add one to all labels so that sure background is not 0 but 1
-            markers = markers + 1
-
-            # Step 6: Mark the unknown regions (where binary_mask is 0) with 0
-            markers[unknown == 255] = 0
-
-            # Step 7: Apply the Watershed algorithm
-            markers = cv2.watershed(cv2.cvtColor(binary_mask * 255, cv2.COLOR_GRAY2BGR), markers)
-
-            # Step 8: Label the watershed regions
-            visual_mask = labeled_mask
-            labeled_mask = np.zeros_like(markers)
-
-            labeled_mask[markers > 1] = markers[markers > 1]
-            visual_mask[markers > 1] = markers[markers > 1]
-
-            unique_labels = np.unique(labeled_mask)
-            # Display output for config mode
-            if self.instance_args.config_mode:
-                cv2.imshow(f"fg-{class_label}", sure_fg)
-                cv2.imshow(f"dist-{class_label}", dist_transform)
-
-            # Step 9: Filter out small sized masks
-            for label_id in unique_labels:
-                filtered_mask = np.zeros_like(labeled_mask)
-                visual_filtered_mask = np.zeros_like(visual_mask)
-                if label_id <= 1:
-                    continue
-                component_size = np.sum(labeled_mask == label_id)
-                if component_size >= self.instance_args.size_threshold:
-                    filtered_mask[labeled_mask == label_id] = 1
-                    visual_filtered_mask[visual_mask == label_id] = 1
-
-                    filtered_mask = np.where(filtered_mask == -1, 0, filtered_mask)
-                    visual_filtered_mask = np.where(visual_filtered_mask == -1, 0, visual_filtered_mask)
-
-                    # Store the labeled mask in the arrays
-                    self.instance_masks.append(filtered_mask)
-                    self.visual_masks.append(visual_filtered_mask)
-                    self.class_id.append(int(class_label))
-
-        return self.instance_masks
-
-    def oriented_bbox(self):
-        """
-        Calculate oriented bounding boxes for each instance mask. Can't be used in tracker
-
-        Returns:
-        list: A list of bounding boxes. Each bounding box is represented as a tuple.
-              For oriented bounding boxes: ((cx, cy), (w, h), angle)
-        """
-
-        if len(self.instance_masks) == 0:
-            return None
-        else:
-            self.oriented_bboxes = []
-            for mask in self.instance_masks:
-                resized_mask = cv2.resize(mask.astype(np.uint8), (self.w, self.h))
-                # Find contours of the mask
-                contours, _ = cv2.findContours(resized_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                if len(contours) == 0:
-                    continue
-                # Calculate oriented bounding box
-                rect = cv2.minAreaRect(contours[0])
-                box_points = cv2.boxPoints(rect)
-                box_points = np.int32(box_points)
-                self.oriented_bboxes.append(box_points)
-            self.oriented_bboxes = np.array((self.oriented_bboxes))
-            return self.oriented_bboxes
-
-    @property
-    def bbox(self):
-        """
-        Calculate bounding boxes for each instance mask. Note, bboxes will use the
-        instance_masks with are different to visual_masks so can look different in
-        visulaization
-
-        Returns:
-        list: A list of bounding boxes. Each bounding box is represented as a tuple.
-              For normal bounding boxes: (x, y, w, h)
-        """
-
-        if self._bbox is not None:
-            return self._bbox
-        elif len(self.instance_masks) == 0:
-            self._bbox = np.empty((0, 4))
-            self.confidence = np.empty(len(self._bbox))
-            return self._bbox
-        else:
-            self._bbox = []
-            for mask in self.instance_masks:
-                resized_mask = cv2.resize(mask.astype(np.uint8), (self.w, self.h))
-                # Find contours of the mask
-                contours, _ = cv2.findContours(resized_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                if len(contours) == 0:
-                    continue
-                # Calculate normal bounding box
-                x, y, w, h = cv2.boundingRect(contours[0])
-                self._bbox.append((x / self.w, y / self.h, (x + w) / self.w, (y + h) / self.h))
-            self._bbox = np.array(self._bbox)
-            self.confidence = np.ones(len(self._bbox))
-            return self._bbox
-
-    @bbox.setter
-    def bbox(self, value):
-        self._bbox = value
-
-    def __len__(self):
-        if self.bbox is not None:
-            return len(self.bbox)
-        else:
-            return 0
-
-    def __iter__(self) -> Iterator[Tuple[np.ndarray, float, np.ndarray, int]]:
-        for i in range(len(self)):
-            yield (
-                self.mask[i] if self.mask is not None else None,
-                self.class_id[i] if self.class_id is not None else None,
-                self.confidence[i] if self.confidence is not None else None,
-                self.bbox[i] if self.bbox is not None else None,
-                self.tracker_id[i] if self.tracker_id is not None else None,
-            )
 
     def __str__(self) -> str:
         """
@@ -882,53 +711,24 @@ class Segments(Result):
             A string representation of the Segments object.
         """
         s = "Segments("
-        if self.class_id is not None:
-            s += f"class_id:\t {self.class_id}, \tconfidence:\t {self.confidence}, \tbbox_shape: {self.bbox.shape}"
-        if self.tracker_id is not None and self.tracker_id.shape == self.class_id.shape:
-            s += f", \ttrack_ids:\t {self.tracker_id}"
         if self.mask is not None:
             s += f"\tmask:\t {self.mask.shape}"
         return s + ")"
 
-    def __copy__(self):
+    def __copy__(self) -> "Segments":
         """
         Returns a copy of the current detections.
         """
         new_instance = Segments()
-        new_instance.bbox = np.copy(self.bbox)
-        new_instance.confidence = np.copy(self.confidence)
-        new_instance.class_id = np.copy(self.class_id)
         new_instance.mask = np.copy(self.mask)
-        new_instance.tracker_id = np.copy(self.tracker_id)
-
+        new_instance._roi_compensated = copy.deepcopy(self._roi_compensated)
         return new_instance
 
-    def copy(self):
+    def copy(self) -> "Segments":
         """
         Returns a copy of the current detections.
         """
         return self.__copy__()
-
-    def __getitem__(self, index: Union[int, slice, List[int], np.ndarray]) -> "Segments":
-        """
-        Returns a new Segments object with the selected segment detections.
-
-        Args:
-            index: The index or indices of the segment detections to select.
-
-        Returns:
-            A new Segments object with the selected detections.
-        """
-        if isinstance(index, int):
-            index = [index]
-
-        res = self.copy()
-        res.confidence = self.confidence[index]
-        res.class_id = self.class_id[index]
-        res.mask = self.mask[index]
-        res.bbox = self.bbox[index] if self.bbox is not None else None
-        res.tracker_id = self.tracker_id[index] if self.tracker_id is not None else None
-        return res
 
     def json(self) -> dict:
         """
@@ -937,14 +737,15 @@ class Segments(Result):
         Returns:
             A dictionary representation of the Segments object with the following keys:
             - "n_segments" (int): Number of detected segments.
-            - "indeces" (list): List of the index corresponding to each segment.
+            - "indices" (list): List of the index corresponding to each segment.
             - "mask" (str): Mask array for each segment (compressed and base64 encoded).
             - "mask_shape" (tuple): The shape of the mask.
+            - "_roi_compensated" (bool): Whether the ROI has been compensated for.
         """
         return {
             "n_segments": self.n_segments,
-            "indeces": self.indeces.tolist(),
-            "mask": base64.b64encode(gzip.compress(self.mask.tobytes())).decode("utf-8"),
+            "indices": self.indices.tolist(),
+            "mask": base64.b64encode(gzip.compress(self.mask.astype(np.uint8).tobytes())).decode("utf-8"),
             "mask_shape": self.mask.shape,
             "_roi_compensated": self._roi_compensated,
         }
@@ -969,6 +770,338 @@ class Segments(Result):
         instance._roi_compensated = data["_roi_compensated"]
         return instance
 
+    def to_instance_segments(self, instance_args: object) -> "InstanceSegments":
+        """
+        Perform connected component analysis on a semantic segmentation mask to provide instance segmentation
+        masks. Applies a watershed algorithm to CCA output to improve the results that are connected
+
+        Args:
+            instance_args: Arguments for instance segmentation.
+
+        Returns:
+            An InstanceSegments object with the instance segmentation masks, class ids.
+        """
+        if instance_args is None:
+            raise ValueError("Input default 'instance_args' to run CCA")
+
+        class_id = []
+        instance_masks = []
+
+        # Perform CCA and Watershed for each class label
+        for class_label in self.indices:
+            binary_mask = self.get_mask(class_label)
+
+            # Label connected components in the binary mask using OpenCV
+            num_labels, labeled_mask = cv2.connectedComponents(binary_mask)
+            labeled_mask += 1
+            E_kernel = np.ones((instance_args.erosion_kernel, instance_args.erosion_kernel), np.uint8)
+            D_kernel = np.ones((instance_args.dilate_kernel, instance_args.dilate_kernel), np.uint8)
+            opening = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, E_kernel, iterations=2)
+            sure_bg = cv2.dilate(opening, D_kernel, iterations=instance_args.dilate_iteration)
+
+            # Watershed algorithm
+            dist_transform = cv2.distanceTransform(opening, cv2.DIST_L2, 5)  # Distance transform
+            dist_transform = cv2.normalize(dist_transform, None, 0, 1.0, cv2.NORM_MINMAX)  # Normalize distance transform
+            _, sure_fg = cv2.threshold(
+                dist_transform, instance_args.dist_threshold * dist_transform.max(), 255, cv2.THRESH_BINARY
+            )  # Threshold the distance transform to obtain markers
+            sure_fg = cv2.erode(sure_fg.astype(np.uint8), E_kernel, iterations=instance_args.erosion_iteration)
+            unknown = cv2.subtract(sure_bg, sure_fg)
+            _, markers = cv2.connectedComponents(sure_fg)  # Perform connected components on the markers
+            markers += 1
+            markers[unknown == 255] = 0  # Mark the unknown regions (where binary_mask is 0) with 0
+            markers = cv2.watershed(
+                cv2.cvtColor(binary_mask * 255, cv2.COLOR_GRAY2BGR), markers
+            )  # Apply Watershed algorithm
+
+            # Label the watershed regions
+            labeled_mask = np.zeros_like(markers)
+            labeled_mask[markers > 1] = markers[markers > 1]
+
+            # Display output in config mode
+            if instance_args.config_mode:
+                cv2.imshow(f"fg-{class_label}", sure_fg)
+                cv2.imshow(f"dist-{class_label}", dist_transform)
+
+            # Filter out small sized masks
+            for label_id in np.unique(labeled_mask):
+                if label_id <= 1:
+                    continue
+                filtered_mask = np.zeros_like(labeled_mask)
+                component_size = np.sum(labeled_mask == label_id)
+                if component_size >= instance_args.size_threshold:
+                    filtered_mask[labeled_mask == label_id] = 1
+
+                    # Store the labeled mask in the arrays
+                    instance_masks.append(filtered_mask)
+                    class_id.append(int(class_label))
+
+        return InstanceSegments(
+            mask=np.array(instance_masks),
+            class_id=np.array(class_id),
+            confidence=np.ones_like(class_id),  # Dummy confidence
+        )
+
+
+class InstanceSegments(Result):
+    """
+    Data class for instance segmentation results.
+    """
+
+    mask: np.ndarray  #: Mask arrays containing the id for each identified segment.
+    bbox: np.ndarray  #: Bounding boxes for each instance.
+    class_id: np.ndarray  #: Class ids for each instance.
+    confidence: np.ndarray  #: Confidence scores for each instance.
+    tracker_id: np.ndarray  #: Tracker ids for each instance.
+
+    def __init__(self, mask: np.ndarray = np.empty((0,)), bbox=None, confidence=None, class_id=None):
+        self.mask = mask.astype(np.uint8)
+        self._bbox = bbox
+        self.class_id = class_id
+        self.confidence = confidence
+        self.tracker_id = None
+
+        self._roi_compensated = False
+
+    def compensate_for_roi(self, roi: ROI):
+        """
+        Compensate the instance segmentation masks and optional bounding boxes for the given ROI.
+
+        Args:
+            roi: The ROI (normalized - left, top, width, height) to compensate for.
+        """
+        if roi == (0, 0, 1, 1) or self._roi_compensated:
+            return
+
+        # initialize as background values and place mask(s) at ROI offset
+        if self.mask.size > 0:
+            n, h, w = self.mask.shape
+            start_h, start_w = int(roi[1] * h / roi[3]), int(roi[0] * w / roi[2])
+            new_masks = np.zeros((n, int(h / roi[3]), int(w / roi[2])), dtype=self.mask.dtype)
+            new_masks[:, start_h : start_h + h, start_w : start_w + w] = self.mask
+            self.mask = new_masks
+
+        if self._bbox is not None:
+            self._bbox[:, 0] = roi[0] + self._bbox[:, 0] * roi[2]
+            self._bbox[:, 1] = roi[1] + self._bbox[:, 1] * roi[3]
+            self._bbox[:, 2] = roi[0] + self._bbox[:, 2] * roi[2]
+            self._bbox[:, 3] = roi[1] + self._bbox[:, 3] * roi[3]
+
+        self._roi_compensated = True
+
+    @property
+    def n_segments(self) -> int:
+        """
+        The number segmented instances.
+        """
+        return len(self.indices)
+
+    @property
+    def indices(self) -> List[int]:
+        """
+        Segmented instances ids.
+        """
+        return self.class_id
+
+    def oriented_bbox(self) -> np.ndarray:
+        """
+        Calculate oriented bounding boxes for each instance mask. Can't be used in tracker
+
+        Returns:
+            A numpy array (N, 4, 2) containing the bounding box corner points for each instance.
+            Each bounding box is represented as a 4x2 array of normalized corner coordinates (x, y) in the range [0, 1].
+            Returns None if there are no masks.
+        """
+        if len(self.mask) == 0:
+            return None
+        else:
+            oriented_bboxes = []
+            _, height, width = self.mask.shape
+            for mask in self.mask:
+                # Find contours of the mask
+                contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                if len(contours) == 0:
+                    continue
+
+                # Calculate normalized oriented bounding box
+                rect = cv2.minAreaRect(contours[0])
+                box_points = cv2.boxPoints(rect)
+                box_points[:, 0] /= width
+                box_points[:, 1] /= height
+
+                oriented_bboxes.append(box_points)
+            return np.array(oriented_bboxes)
+
+    @property
+    def bbox(self) -> np.ndarray:
+        """
+        Calculate bounding boxes for each instance mask.
+
+        Returns:
+            A numpy array of shape (N, 4) containing the bounding boxes.
+            For normal bounding boxes: (x, y, w, h)
+        """
+
+        if self._bbox is not None:
+            return self._bbox
+        elif len(self.mask) == 0:
+            self._bbox = np.empty((0, 4))
+            return self._bbox
+        else:
+            _bbox = []
+            _, height, width = self.mask.shape
+            for mask in self.mask:
+                # Find contours of the mask
+                contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                if len(contours) == 0:
+                    continue
+                # Calculate normal bounding box
+                x, y, w, h = cv2.boundingRect(contours[0])
+                _bbox.append((x / width, y / height, (x + w) / width, (y + h) / height))
+            self._bbox = np.array(_bbox)
+            return self._bbox
+
+    @bbox.setter
+    def bbox(self, value):
+        self._bbox = value
+
+    def __len__(self):
+        if self.mask is not None:
+            return len(self.mask)
+        else:
+            return 0
+
+    def __iter__(self) -> Iterator[Tuple[np.ndarray, int, np.ndarray, int]]:
+        """
+        Iterate over the instance segments.
+        """
+        for i in range(len(self)):
+            yield (
+                self.mask[i] if self.mask is not None else None,
+                self.class_id[i] if self.class_id is not None else None,
+                self.confidence[i] if self.confidence is not None else None,
+                self.bbox[i] if self.bbox is not None else None,
+                self.tracker_id[i] if self.tracker_id is not None else None,
+            )
+
+    def __str__(self) -> str:
+        """
+        Return a string representation of the InstanceSegments object.
+
+        Returns:
+            A string representation of the InstanceSegments object.
+        """
+        s = "InstanceSegments("
+        if self.class_id is not None:
+            s += f"class_id:\t {self.class_id}, \tconfidence:\t {self.confidence}, \tbbox_shape: {self.bbox.shape}"
+        if self.tracker_id is not None and self.tracker_id.shape == self.class_id.shape:
+            s += f", \ttrack_ids:\t {self.tracker_id}"
+        if self.mask is not None:
+            s += f"\tmask:\t {self.mask.shape}"
+        return s + ")"
+
+    def __copy__(self):
+        """
+        Returns a copy of the current detections.
+        """
+        new_instance = InstanceSegments()
+        new_instance.mask = np.copy(self.mask)
+        new_instance.bbox = np.copy(self.bbox)
+        new_instance.confidence = np.copy(self.confidence)
+        new_instance.class_id = np.copy(self.class_id)
+        new_instance.tracker_id = np.copy(self.tracker_id)
+        new_instance._roi_compensated = copy.deepcopy(self._roi_compensated)
+        return new_instance
+
+    def copy(self):
+        """
+        Returns a copy of the current InstanceSegments.
+        """
+        return self.__copy__()
+
+    def __getitem__(self, index: Union[int, slice, List[int], np.ndarray]) -> "InstanceSegments":
+        """
+        Returns a new InstanceSegments object with the selected instance segment detections.
+
+        Args:
+            index: The index or indices of the instance segment detections to select.
+
+        Returns:
+            A new InstanceSegments object with the selected detections.
+        """
+        if isinstance(index, int):
+            index = [index]
+
+        res = self.copy()
+        res.mask = self.mask[index]
+        res.confidence = self.confidence[index]
+        res.class_id = self.class_id[index]
+        res.bbox = self.bbox[index] if self.bbox is not None else None
+        res.tracker_id = self.tracker_id[index] if self.tracker_id is not None else None
+        return res
+
+    def json(self) -> dict:
+        """
+        Convert the InstanceSegments object to a JSON-serializable dictionary.
+
+        Returns:
+            A dictionary representation of the InstanceSegments object with the following keys:
+            - "n_segments" (int): Number of detected instance segments.
+            - "indices" (list): List of the index corresponding to each instance segment.
+            - "mask" (str): Mask array for each instance segment (compressed and base64 encoded).
+            - "mask_shape" (tuple): The shape of the mask.
+            - "bbox" (list): The bounding box coordinates.
+            - "confidence" (list): The confidence scores.
+            - "class_id" (list): The class IDs.
+            - "tracker_id" (list or None): The tracker IDs, or None if tracker_id is not set or its shape does not match.
+            - "_roi_compensated" (bool): Whether the ROI has been compensated for.
+        """
+        return {
+            "n_segments": self.n_segments,
+            "indices": self.indices.tolist(),
+            "mask": base64.b64encode(gzip.compress(self.mask.tobytes())).decode("utf-8"),
+            "mask_shape": self.mask.shape,
+            "bbox": self.bbox.tolist(),
+            "confidence": self.confidence.tolist(),
+            "class_id": self.class_id.tolist(),
+            "tracker_id": (
+                self.tracker_id.tolist()
+                if self.tracker_id is not None and self.tracker_id.shape == self.class_id.shape
+                else None
+            ),
+            "_roi_compensated": self._roi_compensated,
+        }
+
+    @classmethod
+    def from_json(cls, data: dict) -> "InstanceSegments":
+        """
+        Create a InstanceSegments instance from a JSON-serializable dictionary.
+
+        Args:
+            data: JSON-serializable dictionary with instance segmentation data.
+
+        Returns:
+            The InstanceSegments instance created from the JSON data.
+        """
+        bbox = np.array(data["bbox"])
+        confidence = np.array(data["confidence"])
+        class_id = np.array(data["class_id"])
+        tracker_id = np.array(data["tracker_id"]) if data.get("tracker_id") is not None else None
+
+        # Decode and decompress the mask data
+        instance = cls(
+            mask=np.frombuffer(gzip.decompress(base64.b64decode(data["mask"])), dtype=np.uint8).reshape(
+                data["mask_shape"]
+            ),
+            bbox=bbox,
+            confidence=confidence,
+            class_id=class_id,
+        )
+        if tracker_id is not None and len(tracker_id) > 0:
+            instance.tracker_id = tracker_id
+        instance._roi_compensated = data["_roi_compensated"]
+        return instance
+
 
 class Anomaly(Result):
     """
@@ -985,14 +1118,21 @@ class Anomaly(Result):
         self._roi_compensated = False
 
     def compensate_for_roi(self, roi: ROI):
+        """
+        Compensate the anomaly score heatmap for the given ROI.
+
+        Args:
+            roi: The ROI (normalized - left, top, width, height) to compensate for.
+        """
         if roi == (0, 0, 1, 1) or self._roi_compensated:
             return
 
-        h, w = self.heatmap.shape
-        new_heatmap = np.zeros((int(h / roi[3]), int(w / roi[2])), dtype=self.heatmap.dtype)
-        start_h, start_w = int(roi[1] * h / roi[3]), int(roi[0] * w / roi[2])
-        new_heatmap[start_h : start_h + h, start_w : start_w + w] = self.heatmap
-        self.heatmap = new_heatmap
+        if self.heatmap.size > 0:
+            h, w = self.heatmap.shape
+            new_heatmap = np.zeros((int(h / roi[3]), int(w / roi[2])), dtype=self.heatmap.dtype)
+            start_h, start_w = int(roi[1] * h / roi[3]), int(roi[0] * w / roi[2])
+            new_heatmap[start_h : start_h + h, start_w : start_w + w] = self.heatmap
+            self.heatmap = new_heatmap
 
         self._roi_compensated = True
 

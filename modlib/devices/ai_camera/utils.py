@@ -29,6 +29,7 @@
 import importlib.util
 import os
 import sys
+import sysconfig
 
 
 class Fallback:
@@ -42,6 +43,41 @@ class Fallback:
         )
 
 
+class VersionMismatchFallback:
+    def __init__(self, pkg, pkg_path) -> None:
+        self.pkg = pkg
+        self.pkg_path = pkg_path
+        self.current_version = sys.version_info[:2]
+
+    def __getattr__(self, name):
+        current_ver_str = f"{self.current_version[0]}.{self.current_version[1]}"
+        available_files = [f for f in os.listdir(self.pkg_path) if f.startswith("_libcamera.") and f.endswith(".so")]
+        files_list = "\n  ".join(sorted(available_files)) if available_files else "  (none found)"
+
+        raise ImportError(
+            f"\n{self.pkg} module encountered mismatching Python versions. "
+            f"The module was compiled for a different Python version than the current interpreter "
+            f"(Python {current_ver_str}).\n\n"
+            f"Available libcamera packages in {self.pkg_path}:\n  {files_list}\n\n"
+            f"Please switch to a Python interpreter version that matches one of the available modules."
+        )
+
+
+def _abi_mismatch(package_path) -> bool:
+    # Current SOABI of the python interpreter
+    current_soabi = sysconfig.get_config_var("SOABI")
+
+    # Determine SOABI for all _libcamera.*.so packages in the package directory
+    package_soabis = []
+    for filename in os.listdir(package_path):
+        if filename.startswith("_libcamera.") and filename.endswith(".so"):
+            # Extract SOABI from filename: _libcamera.{SOABI}.so
+            package_soabis.append(filename[len("_libcamera.") : -len(".so")])
+
+    abi_available = current_soabi in package_soabis
+    return not abi_available
+
+
 def _import_global_package(package_name, package_path):
     if not os.path.exists(package_path):
         return Fallback(package_name, package_path)
@@ -49,7 +85,13 @@ def _import_global_package(package_name, package_path):
     spec = importlib.util.spec_from_file_location(package_name, f"{package_path}/__init__.py")
     pkg = importlib.util.module_from_spec(spec)
     sys.modules[package_name] = pkg
-    spec.loader.exec_module(pkg)
+    try:
+        spec.loader.exec_module(pkg)
+    except Exception:
+        if _abi_mismatch(package_path):
+            return VersionMismatchFallback(package_name, package_path)
+        else:
+            return Fallback(package_name, package_path)  # regular error Fallback
 
     return pkg
 
@@ -57,7 +99,7 @@ def _import_global_package(package_name, package_path):
 def _import_libcamera():
     # Import from globally installed package
     libcamera = _import_global_package("libcamera", "/usr/lib/python3/dist-packages/libcamera")
-    if isinstance(libcamera, Fallback):
+    if isinstance(libcamera, (Fallback, VersionMismatchFallback)):
         return libcamera
 
     # LIBCAMERA CONFIGURATION

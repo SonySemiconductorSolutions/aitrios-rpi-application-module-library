@@ -26,16 +26,35 @@ class ObjectCounter:
     """
 
     def __init__(self):
+        """
+        Initializes the ObjectCounter instance.
+
+        Attributes:
+            counters (dict): A dictionary to store counts for each detected class.
+            valid_IDs (np.ndarray): An array of valid tracker IDs.
+            uptime (dict): A dictionary to track the uptime of each tracker ID.
+
+        Example:
+            ```python
+            object_counter = ObjectCounter()
+            ```
+        """
+
         self.counters = {}
         self.valid_IDs = np.array([])
         self.uptime = {}
 
     def update(self, detections: Detections) -> None:
         """
-        Updates counters for all classes that are detected in Detections Class, increaments already detected classes.
+        Updates counters for all classes detected in the Detections object. Increments counts for already detected classes.
 
         Args:
-            detections: The Detections to check if the are in area.
+            detections: The detections to process and count. If tracker_id is used, it will only count an ID once it has been seen for more than 20 frames.
+
+        Example:
+            ```python
+            object_counter.update(detections)
+            ```
         """
         if detections.tracker_id is not None:
             for _, s, c, t in detections:
@@ -61,10 +80,15 @@ class ObjectCounter:
 
     def update_pose(self, poses: Poses) -> None:
         """
-        Updates counters for Pose detections, Poses doesn't have class_id so every detection type is '1'.
+        Updates counters for pose detections. Since Poses do not have `class_id`, all detections are counted under the class ID `1`.
 
         Args:
-            poses: The Pose detections to check if the are in area.
+            poses: The pose detections to process and count. If tracker is used, it will only count an ID once it has been seen for more than 30 frames.
+
+        Example:
+            ```python
+            object_counter.update_pose(poses)
+            ```
         """
         if poses.tracker is not None:
             for k, s, _, b, t in poses:
@@ -98,7 +122,11 @@ class ObjectCounter:
             class_id: The ID of the class user wants value of
 
         Returns:
-            self.counters[str(class_id)]: Value of the class_id
+            The count for the specified class ID. Returns 0 if the class ID is not found.
+
+        Example:
+            ```python
+            count = object_counter.get(class_id=1)
         """
         if str(class_id) in self.counters:
             return self.counters[str(class_id)]

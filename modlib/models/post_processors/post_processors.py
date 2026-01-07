@@ -19,7 +19,7 @@ from typing import List, Tuple
 import numpy as np
 from modlib.models.post_processors import cpp_post_processors
 
-from ..results import Anomaly, Classifications, Detections, Poses, Segments
+from ..results import Anomaly, Classifications, Detections, Poses, Segments, InstanceSegments
 from .higherhrnet import postprocess_higherhrnet
 from .yolo import postprocess_yolov8_detection, postprocess_yolov8_keypoints
 
@@ -621,8 +621,7 @@ def pp_segment(output_tensors: List[np.ndarray]) -> Segments:
     Returns:
         The post-processed segmentation results.
     """
-    # Replace background 0 values with -1
-    return Segments(mask=np.where(output_tensors[0] == 0, -1, output_tensors[0]))
+    return Segments(mask=output_tensors[0])
 
 
 def pp_yolo_segment_ultralytics(
@@ -682,7 +681,7 @@ def pp_yolo_segment_ultralytics(
 
     boxes /= input_tensor_sz
 
-    return Segments(_bbox=boxes, class_id=classes, confidence=scores, mask=cropped_mask)
+    return InstanceSegments(mask=cropped_mask, bbox=boxes, class_id=classes, confidence=scores)
 
 
 def pp_anomaly(output_tensors: List[np.ndarray]) -> Anomaly:

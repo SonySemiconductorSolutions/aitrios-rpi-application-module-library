@@ -15,9 +15,11 @@
 #
 
 from . import blur
-from .annotate import Annotator, ColorPalette
+from .annotate import Annotator, ColorPalette, Color
 from .area import Area
 from .heatmap import Heatmap
 from .matcher import Matcher
 from .object_counter import ObjectCounter
 from .tracker import BYTETracker
+from .motion import Motion
+from .calculate import SpeedCalculator, estimate_angle, calculate_distance, calculate_distance_matrix

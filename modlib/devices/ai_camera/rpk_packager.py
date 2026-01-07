@@ -96,7 +96,7 @@ class RPKPackager:
             output_dir: The directory where the packaged rpk file will be saved.
             color_format: Color format to package for. Defaults to `COLOR_FORMAT.RGB`.
             overwrite: If None, prompts the user for input. If True, overwrites the output directory if it exists.
-                If False, aborts if the directory exists.
+                If False, terminates the packaging process if the directory exists.
 
         Raises:
             EnvironmentError: When the packager is initialised on a host other then a Raspberry Pi.
@@ -120,7 +120,7 @@ class RPKPackager:
                     The given output directory '{output_dir}' already contains a `network.rpk` file.
                     1. Type 'yes/y' to overwrite the existing network.rpk file
                     2. Press <Enter> to use the already existing network.rpk file
-                    3. Press 'no/n' to abort
+                    3. Press 'no/n' to terminate the packaging process
                     Choice (y/<Enter>/n): """
                 )
             else:
@@ -132,7 +132,7 @@ class RPKPackager:
                 sys.exit()
 
             if user_input.lower() not in ("yes", "y"):
-                logger.info("Model packaging aborted.")
+                logger.info("Model packaging terminated.")
                 return
 
         if not self.verified:

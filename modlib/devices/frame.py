@@ -22,7 +22,7 @@ from typing import Optional, Tuple, Union
 import cv2
 import numpy as np
 
-from ..models import COLOR_FORMAT, ROI, Anomaly, Classifications, Detections, Poses, Segments
+from ..models import COLOR_FORMAT, ROI, Anomaly, Classifications, Detections, Poses, Segments, InstanceSegments
 
 
 CV2_WINDOWS = set()
@@ -49,6 +49,7 @@ class RESULT_TYPE:
     Detections = Detections
     Poses = Poses
     Segments = Segments
+    InstanceSegments = InstanceSegments
     Anomaly = Anomaly
 
 
@@ -71,7 +72,7 @@ class Frame:
     width: int  #: The width of the frame.
     height: int  #: The height of the frame.
     channels: int  #: The number of channels in the frame.
-    detections: Union[Classifications, Detections, Poses, Segments, Anomaly]  #: The detections in the frame.
+    detections: Union[Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly]  #: The detections in the frame.
     new_detection: bool  #: Flag if the provided detections are updated or an old copy.
     fps: float  #: The frames per second of the video stream.
     dps: float  #: The detections per second in the video stream.
@@ -87,7 +88,7 @@ class Frame:
         width: int,
         height: int,
         channels: int,
-        detections: Union[Classifications, Detections, Poses, Segments, Anomaly],
+        detections: Union[Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly],
         new_detection: bool,
         fps: float,
         dps: float,
@@ -133,7 +134,7 @@ class Frame:
         self._image = value
 
     @property
-    def detections(self) -> Union[Classifications, Detections, Poses, Segments, Anomaly]:
+    def detections(self) -> Union[Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly]:
         """
         Get the detections in the frame.
 
@@ -149,7 +150,7 @@ class Frame:
             raise ValueError("No model is running: `frame.detections` unavailable.\n")
 
     @detections.setter
-    def detections(self, value: Union[Classifications, Detections, Poses, Segments, Anomaly]):
+    def detections(self, value: Union[Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly]):
         self._detections = value
 
     @property
@@ -325,7 +326,7 @@ class Frame:
             data: JSON-serializable dictionary with frame data.
 
         Returns:
-            Frame: The Frame instance created from the JSON data.
+            The Frame instance created from the JSON data.
         """
         # Decode and decompress the image data if available
         image_data = data.get("image")

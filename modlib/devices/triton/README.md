@@ -49,7 +49,7 @@ Incorrect output
 Standard exception thrown: 
 terminate called after throwing an instance of 'std::runtime_error'
   what():  deviceInfos.size() == 0, no device connected
-Aborted
+Terminated
 ```
 Check the network settings for your network card: IPv4 should be set to Manual, Address: 169.254.0.1, Netmask: 255.255.0.0, [ArenaSDK docs](https://support.thinklucid.com/arena-sdk-documentation/)
 
@@ -73,5 +73,5 @@ terminate called after throwing an instance of 'std::runtime_error'
   -1001 GenTL::GC_ERR_ERROR(-1001) :
       GenTL::HALGev::WriteReg Ack is invalid: -1019 : address: 0x12900004, ACK = 0x83, status = 0x8fff, ack_id = 0x1fd4, length = 0x4
  (file 'Port.cpp', line 79)
-Aborted
+Terminated
 ```

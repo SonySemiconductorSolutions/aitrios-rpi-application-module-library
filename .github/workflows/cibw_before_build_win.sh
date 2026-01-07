@@ -37,7 +37,12 @@ else
     echo "Arena SDK not found; Installing Arena SDK."
 
     # Download Arena SDK
-    ARENA_SDK_VERSION="v1.0.49.3"
+    ARENA_SDK_VERSION="v1.0.55.11"
+
+    # Get ARENA_SDK_DOWNLOAD_URL from Windows environment if not already set
+    if [ -z "${ARENA_SDK_DOWNLOAD_URL}" ]; then
+        ARENA_SDK_DOWNLOAD_URL=$(cmd.exe /c "echo %ARENA_SDK_DOWNLOAD_URL%" 2>/dev/null | tr -d '\r\n' || echo "")
+    fi
 
     # Download Arena SDK
     echo "Downloading Arena SDK..."

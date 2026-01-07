@@ -28,7 +28,7 @@ each other existence:​
 - <span style={{color: "var(--orange)", fontWeight: "bold"}}>Models</span>: Pytorch and Keras models can be **converted, packaged & deployed** to any device. ​
 Choose a **post-processor** function provided or develop your own post-processing function by converting the output tensor to a **predefined detection format**. ​
 ​
-- <span style={{color: "var(--orange)", fontWeight: "bold"}}>Apps</span>: After choosing what model on which device. Enjoy a set of prebuilt, modular application components that supports the developer in solving his use-case. (e.g. annotators, tracker, heatmap … )
+- <span style={{color: "var(--orange)", fontWeight: "bold"}}>Apps</span>: After choosing what model on which device. Enjoy a set of prebuilt, modular application components that support them in solving their use-case. (e.g. annotators, tracker, heatmap … )
 
 
 ![Modularity](modlib-modularity.png)

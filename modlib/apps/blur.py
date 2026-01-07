@@ -30,7 +30,7 @@ def blur_object(frame: Frame, detections: Detections, intensity: Optional[int] =
     Args:
         frame: The current frame to blur the object on.
         detections: The object detections.
-        intensity: The instensity of the blur applied. Defaults to 30.
+        intensity: The intensity of the blur applied. Defaults to 30.
 
     Returns:
         The blurred frame.image
@@ -62,7 +62,7 @@ def blur_face(frame: Frame, poses: Poses, intensity: Optional[int] = 30, padding
     Args:
         frame: The current frame to blur the object on.
         poses: The poses key points.
-        intensity: The instensity of the blur applied. Defaults to 30.
+        intensity: The intensity of the blur applied. Defaults to 30.
         padding: The padding added to blur bounding box to cover the face. Defaults to 5
 
     Returns:

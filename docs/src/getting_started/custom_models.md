@@ -111,7 +111,7 @@ with device as stream:
 ## Pre Processing (Optional)
 
 The pre-processing method is only required when deploying the model to an <u>Interpreter Device</u> or when using <u>Data-Injection</u>.
-Similar to the post-processing, pre-processing has a predifined function signature and expected output.
+Similar to the post-processing, pre-processing has a predefined function signature and expected output.
 - **Argument:** image (`np.ndarray`) The input image of the Source to be processed.
 - **Returns:** (`Tuple[np.ndarray, np.ndarray]`) A tuple (input_tensor_image, input_tensor):
     - Preprocessed input tensor image as a NumPy array.
