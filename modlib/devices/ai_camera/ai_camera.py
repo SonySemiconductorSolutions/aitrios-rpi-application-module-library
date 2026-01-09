@@ -60,12 +60,21 @@ class _OutputTensorInfo(ctypes.LittleEndianStructure):
         ("size", ctypes.c_uint16 * MAX_NUM_DIMENSIONS),
     ]
 
-
+# NOTE: Compatible with libcamera 0.5.0 on Raspberry Pi OS: Bookworm
 class _CnnOutputTensorInfoExported(ctypes.LittleEndianStructure):
     _fields_ = [
         ("network_name", ctypes.c_char * NETWORK_NAME_LEN),
         ("num_tensors", ctypes.c_uint32),
         ("info", _OutputTensorInfo * MAX_NUM_TENSORS),
+    ]
+
+# NOTE: Compatible with libcamera 0.6.0 on Raspberry Pi OS: Trixie
+class _CnnOutputTensorInfoExported2(ctypes.LittleEndianStructure):
+    _fields_ = [
+        ("network_name", ctypes.c_char * NETWORK_NAME_LEN),
+        ("num_tensors", ctypes.c_uint32),
+        ("info", _OutputTensorInfo * MAX_NUM_TENSORS),
+        ("frameCount", ctypes.c_uint8),
     ]
 
 
@@ -667,10 +676,15 @@ class AiCamera(Device):
 
         if type(output_tensor_info) not in [bytes, bytearray]:
             output_tensor_info = bytes(output_tensor_info)
-        if len(output_tensor_info) != ctypes.sizeof(_CnnOutputTensorInfoExported):
+        
+        # NOTE: Compatible with both libcamera 0.5.0 and 0.6.0
+        if len(output_tensor_info) == ctypes.sizeof(_CnnOutputTensorInfoExported):
+            parsed = _CnnOutputTensorInfoExported.from_buffer_copy(output_tensor_info)
+        elif len(output_tensor_info) == ctypes.sizeof(_CnnOutputTensorInfoExported2):
+            parsed = _CnnOutputTensorInfoExported2.from_buffer_copy(output_tensor_info)
+        else:
             raise ValueError(f"tensor info length {len(output_tensor_info)} does not match expected size")
-
-        parsed = _CnnOutputTensorInfoExported.from_buffer_copy(output_tensor_info)
+        
         return [list(t.size)[: t.num_dimensions] for t in parsed.info[: parsed.num_tensors]]
 
     def __enter__(self):
