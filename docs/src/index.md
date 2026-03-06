@@ -27,6 +27,7 @@ We're continuously extending and improving the library and our content to provid
     - [Model zoo](getting_started/model_zoo.md)
     - [Custom models](getting_started/custom_models.md)
     - [Devices](getting_started/devices.md)
+    - [Data Injection](getting_started/data_injection.md)
 - **Devices**
     - [AiCamera](devices/ai_camera.md)
     - [Triton® Smart](devices/triton.md)

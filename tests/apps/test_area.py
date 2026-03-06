@@ -23,13 +23,13 @@ from tests.test_devices import test_apps_device
 
 def test_area(test_apps_device):
 
-    area = Area([[0.1,0.1], [0.1,0.9], [0.9,0.9], [0.9,0.1]]) #Area covers whole camera view 
+    area = Area([[0.1,0.1], [0.1,0.9], [0.9,0.9], [0.9,0.1]]) #Area covers whole camera view
 
     AREA = False
 
     with test_apps_device as stream:
         for frame in stream:
-            
+
             detections = frame.detections[frame.detections.confidence > 0.50]
             detections = detections[area.contains(detections)]
 
@@ -38,5 +38,5 @@ def test_area(test_apps_device):
 
             # NOTE: Manual check the area output
             # print(AREA)
-    
-    assert AREA == True
+
+    assert AREA

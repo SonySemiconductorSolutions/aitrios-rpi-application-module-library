@@ -60,4 +60,4 @@ Changing the `InstanceSegArgs` will allow you to fine-tune the algorithms for th
 
 ![Instance Segmentation: config_mode](gifs/instance_segmentation.jpg)
 
-Increasing the erosion and dilate kernel sizes or the iterations will change the masks so that they get smaller making it easier to calculate the different instances with the Watershed algorithm. The `dist_thrreshold` parameter will directly impact the distances matrix image you can see. Decreasing the threshold will allow objects that are closer together be more defined in the foreground. Then `size_threshold` sets the minimum mask size so that small masks don't get detected.
+Increasing the erosion and dilate kernel sizes or the iterations will change the masks so that they get smaller making it easier to calculate the different instances with the Watershed algorithm. The `dist_threshold` parameter will directly impact the distances matrix image you can see. Decreasing the threshold will allow objects that are closer together be more defined in the foreground. Then `size_threshold` sets the minimum mask size so that small masks don't get detected.

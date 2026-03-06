@@ -137,7 +137,7 @@ It includes detailed documentation, examples, and reusable modules to simplify a
         - Returns: np.ndarray
             The annotated frame.image with orientated bounding boxes.
     - **`annotate_segments`**: (Method)
-        - Purpose: Draws segmentation areas on the frame using the provided segments. 
+        - Purpose: Draws segmentation areas on the frame using the provided segments.
         - Args:
             frame: Frame - The frame to annotate, must be of type `Frame` from `modlib.devices`.
             segments: Segments - The segments defining the areas that will be drawn on the image, must be of type `Segments` from `modlib.models.results`.
@@ -524,8 +524,8 @@ It includes detailed documentation, examples, and reusable modules to simplify a
             The updated frame with the heatmap overlay.
 ##### Matcher Module
     - File: .venv/lib/python3.11/site-packages/modlib/apps/matcher.py
-    - Purpose: The `Matcher` module is designed to evaluate spatial relationships between objects, such as determining whether one object is contained within another or whether two objects intersect. 
-    It is suitable for both **simple relationships** (e.g., checking if one object is within another) and **complex relationships** (e.g., evaluating overlaps between multiple objects across different classes).  
+    - Purpose: The `Matcher` module is designed to evaluate spatial relationships between objects, such as determining whether one object is contained within another or whether two objects intersect.
+    It is suitable for both **simple relationships** (e.g., checking if one object is within another) and **complex relationships** (e.g., evaluating overlaps between multiple objects across different classes).
 - **Example Usage**:
     ```python
     from modlib.apps import Annotator, Matcher
@@ -925,6 +925,7 @@ It includes detailed documentation, examples, and reusable modules to simplify a
             frame_rate: typing.Optional[int] - The frames per second applied to the libcamera configuration.
             image_size: typing.Tuple[int, int] - Resolution of the frame.image. Defaults to (640, 480) which has the original aspect ratio.
             num: typing.Optional[int] - The camera number to select which camera to use, when more then one AiCamera connected to libcamera.
+            data_injection: typing.Optional[bool] - Enable data injection mode.
 
     - **`__iter__`**: (Method)
         - Purpose: Iterate over the frames in the device stream.
@@ -945,6 +946,17 @@ It includes detailed documentation, examples, and reusable modules to simplify a
         - Purpose: Retrieve the unique IMX500 device ID.
     - **`get_frame`**: (Method)
         - Purpose: Gets the next processed frame in the device stream.
+    - **`inject`**: (Method)
+        - Purpose: No documentation available.
+        - Args:
+            dsp_input_tensor: Any - No description available.
+            max_retries: Any - No description available.
+
+    - **`inject_input_tensor`**: (Method)
+        - Purpose: No documentation available.
+        - Args:
+            tensor_data: <class 'numpy.ndarray'> - No description available.
+
     - **`prepare_model_for_deployment`**: (Method)
         - Purpose: Prepares a model for deployment by converting and/or packaging it based on the model type.
         Behaviour of the deployment depends on model type:
@@ -973,6 +985,578 @@ It includes detailed documentation, examples, and reusable modules to simplify a
         - Purpose: Start the AiCamera device stream.
     - **`stop`**: (Method)
         - Purpose: Stop the AiCamera device stream.
+##### Dataset Module
+    - File: .venv/lib/python3.11/site-packages/modlib/devices/sources.py
+    - Purpose: Source that walks a directory tree and yields dataset samples.
+    Useful for evaluation pipelines that need specific image ids from file names or folder structures.
+- **Example Usage**:
+    ```python
+    import cv2
+    from datetime import datetime
+    from modlib.apps import Annotator
+    from modlib.devices import AiCamera, Frame, IMAGE_TYPE, Dataset
+    from modlib.models.zoo import MobileNetV2
+    from modlib.models.evals import EvaluationSample, ClassificationEvaluator
+    from modlib.devices.imx500 import isp
+    
+    
+    device = AiCamera(data_injection=True, frame_rate=20)
+    model = MobileNetV2()
+    device.deploy(model)
+    
+    dataset = Dataset(
+        images_dir="examples/assets/imagenet_dataset",
+        dataset_id_function=lambda path: int(path.parent.name)
+    )
+    
+    all_samples: list[EvaluationSample] = []
+    annotator = Annotator(thickness=2, text_thickness=1, text_scale=0.4)
+    
+    
+    with device:
+        for sample in dataset:
+            # 1. Prepare input tensor (like IMX500 ISP)
+            dsp_input_tensor, roi = isp.prepare_tensor_like_isp(
+                img=sample.image,
+                model=model,
+                src_color_format=sample.image_color_format,
+            )
+    
+            # 2. Inject input tensor
+            detections = device.inject(dsp_input_tensor)
+    
+            # 3. Store Evaluation Sample
+            all_samples.append(EvaluationSample(
+                roi=roi,
+                detections=detections,
+                dataset_sample=sample,
+            ))
+    
+            # Vizualize result on sample image
+            h, w, c = sample.image.shape
+            frame = Frame(
+                timestamp=datetime.now(),
+                image=sample.image.copy(), image_type=IMAGE_TYPE.SOURCE,
+                color_format=sample.image_color_format,
+                width=w, height=h, channels=c,
+                detections=detections, roi=roi,
+                new_detection=True, fps=0, dps=0,
+                frame_count=0,
+            )
+    
+            for i, label in enumerate([model.labels[id] for id in detections.class_id[:3]]):
+                text = f"{i + 1}. {label}: {detections.confidence[i]:.2f}"
+                cv2.putText(frame.image, text, (50, 30 + 40 * (i + 1)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (100, 0, 100), 2)
+    
+            frame.display()
+    
+    # Evaluate
+    evaluator = ClassificationEvaluator(
+        ground_truth="examples/assets/imagenet_dataset",
+        labels=model.labels,
+    )
+    
+    evaluator.evaluate(all_samples)
+    evaluator.visualize(all_samples, output_dir="tmp/annotated_images_cls")
+    ```
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Build a dataset source.
+        - Args:
+            images_dir: <class 'pathlib.Path'> - Root directory scanned recursively for images.
+            dataset_id_function: typing.Optional[typing.Callable] - Optional callable mapping a Path to an image id; defaults to the file stem.
+
+    - **`__iter__`**: (Method)
+        - Purpose: Iterate over dataset samples.
+        
+        Yields:
+            DatasetSample with path, name, id, and image in RGB format.
+    - **`get_frame`**: (Method)
+        - Purpose: Load the next image from the dataset.
+    - **`get_image_id`**: (Method)
+        - Purpose: Resolve the image id for a given path.
+        - Args:
+            img_path: <class 'pathlib.Path'> - Path to the image file.
+        - Returns: int | str
+            Id from `dataset_id_function` or the file stem (cast to int when numeric).
+##### Device Module
+    - File: .venv/lib/python3.11/site-packages/modlib/devices/device.py
+    - Purpose: Abstract base class for devices.
+    
+    A device in the Application Module Library has to conform to the following interface:
+    1. Deploy a model to the device. Example usage:
+    ```
+    model = Model()
+    device.deploy(model, *args)
+    ```
+    
+    2. Enter and iterate over the frames in the device stream. Example usage:
+    ```
+    with device as stream:
+- **Example Usage**:
+    ```python
+    from modlib.devices import AiCamera
+    
+    device = AiCamera()
+    
+    with device as stream:
+        for frame in stream:
+            print(f"Device ID: {device.get_device_id()}")
+            break  # run once
+    ```
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialisation of the device base class.
+        - Args:
+            headless: typing.Optional[bool] - Initialising in headless mode means `frame.image` is never processed and unavailable.
+            enable_input_tensor: typing.Optional[bool] - When enabling input tensor, `frame.image` will be replaced by the input tensor image.
+            timeout: typing.Optional[int] - If set, automatically stop the device loop after the specified seconds.
+
+    - **`__iter__`**: (Method)
+        - Purpose: Abstract method to iterate over the frames in the device stream.
+    - **`check_timeout`**: (Method)
+        - Purpose: Utility method for checking if the specified timeout if it has been set.
+        Stops the stream iterator if the timeout has been exceeded.
+    - **`deploy`**: (Method)
+        - Purpose: Abstract method to deploy a model to the device.
+        - Args:
+            model: <class 'modlib.models.model.Model'> - The model to be deployed.
+            args: Any - No description available.
+
+##### Frame Module
+    - File: .venv/lib/python3.11/site-packages/modlib/devices/frame.py
+    - Purpose: Represents a frame in a device stream.
+    
+    ```
+    with device as stream:
+- **Attributes**:
+    - channels: int - The number of channels in the frame.
+    - color_format: COLOR_FORMAT - The color format of the frame. Defaults to `RGB`.
+    - detections: Union[
+        Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly
+    ] - The detections in the frame.
+    - dps: float - The detections per second in the video stream.
+    - fps: float - The frames per second of the video stream.
+    - frame_count: Optional[int] - The frame count of the frame. Defaults to None.
+    - height: int - The height of the frame.
+    - image: np.ndarray - The image data of the frame.
+    - image_type: IMAGE_TYPE - Specification of what is visualised in `frame.image`.
+    - new_detection: bool - Flag if the provided detections are updated or an old copy.
+    - roi: Optional[ROI] - Relative ROI of the input tensor. Defaults to None.
+    - timestamp: str - The timestamp of the frame.
+    - width: int - The width of the frame.
+- **Example Usage**:
+    ```python
+    import os
+    import time
+    import numpy as np
+    import matplotlib.pyplot as plt
+    
+    from collections import deque
+    from contextlib import contextmanager
+    from modlib.devices import AiCamera
+    from modlib.models.zoo import DeepLabV3Plus
+    
+    
+    def calculate_cv(values) -> float:
+        """Calculate coefficient of variation"""
+        if not values:
+            return float("inf")
+        mean = sum(values) / len(values)
+        if mean == 0:
+            return float("inf")
+        variance = sum((x - mean) ** 2 for x in values) / len(values)
+        return (variance**0.5) / mean
+    
+    
+    def is_stable(values: deque, threshold: float = 0.1) -> bool:
+        """Check if values have stabilized based on coefficient of variation"""
+        if len(values) < 5:  # Need at least 5 samples to determine stability
+            return False
+        # Calculate coefficient of variation (CV) for each metric
+        fps_cv = calculate_cv([v[0] for v in values])
+        dps_cv = calculate_cv([v[1] for v in values])
+        rps_cv = calculate_cv([v[2] for v in values])
+        # print(f"CV values (FPS, DPS, RPS): {fps_cv:.3f}, {dps_cv:.3f}, {rps_cv:.3f}")
+        # Check if all metrics are stable
+        return all(cv <= threshold for cv in [fps_cv, dps_cv, rps_cv])
+    
+    
+    def measure_rates(device):
+        stabilization_threshold = 0.015  # 1.5% variation threshold
+        max_stabilization_time = 60  # seconds
+        stabilization_values = deque(maxlen=10)
+        final_values = deque(maxlen=30)
+        stabilized = False
+        stabilization_start_time = None
+    
+        with device as stream:
+            for frame in stream:
+                current_values = (frame.fps, frame.dps, stream.rps.value)
+    
+                # If not yet stabilized, collect stabilization data
+                if not stabilized:
+                    stabilization_values.append(current_values)
+                    if stabilization_start_time is None:
+                        stabilization_start_time = time.time()
+                    if is_stable(stabilization_values, stabilization_threshold):
+                        stabilized = True
+                        print("Rate values stabilized.")
+                    if time.time() - stabilization_start_time > max_stabilization_time:
+                        stabilized = True
+                        print("Stabilization time exceeded. Continuing...")
+                # If stabilized, collect final average data
+                else:
+                    final_values.append(current_values)
+                    if len(final_values) >= final_values.maxlen:
+                        break
+    
+                # frame.display()
+    
+        # Calculate final averages
+        avg_fps = sum(v[0] for v in final_values) / len(final_values)
+        avg_dps = sum(v[1] for v in final_values) / len(final_values)
+        avg_rps = sum(v[2] for v in final_values) / len(final_values)
+    
+        return avg_fps, avg_dps, avg_rps
+    
+    
+    def plot_metrics(rps, dps, model_name=""):
+        fig, ax = plt.subplots(figsize=(12, 8))
+        (line,) = ax.plot(rps, dps, "o-", lw=2, ms=8, mfc="white", mew=2, mec="#1f77b4", label="DPS vs RPS")
+        ax.fill_between(rps, dps, alpha=0.2, color=line.get_color())
+    
+        i = np.argmax(dps)
+        ax.plot(rps[i], dps[i], "o", ms=12, color="green", label=f"Max DPS: {dps[i]:.2f} @ frame_rate={int(round(rps[i]))}")
+        ax.annotate(
+            f"DPS: {dps[i]:.2f}\nRPS: {rps[i]:.2f}\nFrame Rate: {int(round(rps[i]))}",
+            xy=(rps[i], dps[i]),
+            xytext=(20, 20),
+            textcoords="offset points",
+            fontsize=10,
+            bbox=dict(boxstyle="round,pad=0.5", fc="green", alpha=0.2),
+            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=0.2"),
+        )
+    
+        ax.tick_params(labelsize=10)
+        ax.grid(True, linestyle="--", alpha=0.7)
+        ax.legend(loc="upper left", frameon=True, fancybox=True, shadow=True)
+        ax.set(xlabel="Request Rate (RPS)", ylabel="Detection Rate (DPS)", title=f"{model_name}: DPS vs RPS")
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        plt.show()
+    
+    
+    @contextmanager
+    def suppress_output():
+        with open(os.devnull, "w") as d, os.fdopen(os.dup(2), "w") as o2:
+            os.dup2(d.fileno(), 2)
+            try:
+                yield
+            finally:
+                os.dup2(o2.fileno(), 2)
+    
+    
+    if __name__ == "__main__":
+        model = DeepLabV3Plus()
+    
+        frame_rates = range(5, 31)
+        dps_values, rps_values = [], []
+    
+        for fr in frame_rates:
+            print(f"\nMeasuring rates for frame rate: {fr}")
+            with suppress_output():
+                device = AiCamera(enable_input_tensor=False, frame_rate=fr)
+                device.deploy(model, overwrite=False)
+                avg_fps, avg_dps, avg_rps = measure_rates(device)
+    
+            dps_values.append(avg_dps)
+            rps_values.append(avg_rps)
+            print(f"Average FPS: {avg_fps:.2f}")
+            print(f"Average DPS: {avg_dps:.2f}")
+            print(f"Average RPS: {avg_rps:.2f}")
+    
+        plot_metrics(rps_values, dps_values, model_name=model.__class__.__name__)
+    ```
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize an Frame object.
+        - Args:
+            timestamp: <class 'str'> - The timestamp of the frame.
+            image: <class 'numpy.ndarray'> - The image data of the frame.
+            image_type: <class 'modlib.devices.frame.IMAGE_TYPE'> - Specification of what is visualised in `frame.image`.
+            width: <class 'int'> - The width of the frame.
+            height: <class 'int'> - The height of the frame.
+            channels: <class 'int'> - The number of channels in the frame.
+            detections: typing.Union[modlib.models.results.Classifications, modlib.models.results.Detections, modlib.models.results.Poses, modlib.models.results.Segments, modlib.models.results.InstanceSegments, modlib.models.results.Anomaly] - The detections in the frame.
+            new_detection: <class 'bool'> - Flag if the provided detections are updated or an old copy.
+            fps: <class 'float'> - The frames per second of the video stream.
+            dps: <class 'float'> - The detections per second in the video stream.
+            color_format: <class 'modlib.models.model.COLOR_FORMAT'> - The color format of the frame. Defaults to `RGB`.
+            roi: typing.Optional[modlib.models.results.ROI] - Relative ROI of the input tensor. Defaults to None.
+            frame_count: typing.Optional[int] - The frame count of the frame. Defaults to None.
+
+    - **`display`**: (Method)
+        - Purpose: Display the frame with various options for visualization.
+        - Args:
+            show_fps_dps: <class 'bool'> - No description available.
+            cropping: typing.Union[modlib.models.results.ROI, typing.Tuple[float, float, float, float], NoneType] - No description available.
+            rotate: typing.Optional[int] - No description available.
+            flip: typing.Optional[int] - No description available.
+            window_name: <class 'str'> - Name identifier string of the cv2 window.
+            resize_window: <class 'bool'> - No description available.
+        Returns:
+            The displayed image (in cv2 BGR format).
+        
+        Raises:
+            ValueError: If the cropping parameter is not a valid ROI or tuple of 4 floats.
+        
+        Note:
+            This is a legacy method, consider using `prepare_for_display` and `display_image` instead,
+            which provides separate methods for preparing the image for display and displaying the image.
+    - **`display_image`**: (Method)
+        - Purpose: Display the annotated image with various options for visualization.
+        - Args:
+            img: <class 'numpy.ndarray'> - The image to display.
+            window_name: <class 'str'> - Name identifier string of the cv2 window.
+            resize_window: <class 'bool'> - If True, resize display window to the size of the image.
+
+    - **`json`**: (Method)
+        - Purpose: Convert the complete Frame to a JSON-serializable dictionary.
+    - **`prepare_for_display`**: (Method)
+        - Purpose: Annotate the frame.
+        - Args:
+            show_fps_dps: <class 'bool'> - If True, display the frames per second (FPS) and detections per second (DPS) on the image.
+            cropping: typing.Union[modlib.models.results.ROI, typing.Tuple[float, float, float, float], NoneType] - The region of interest to display, either as a named tuple ROI or a tuple of four floats
+            rotate: typing.Optional[int] - The rotation code for the image. Use cv2 rotation codes:
+            flip: typing.Optional[int] - The flip code for the image. Use 0 for vertical, 1 for horizontal, -1 for both, or None for no flip.
+        - Returns: <class 'numpy.ndarray'>
+            The annotated image (in cv2 BGR format).
+        
+        Raises:
+            ValueError: If the cropping parameter is not a valid ROI or tuple of 4 floats.
+##### IMAGE_TYPE Module
+    - File: .venv/lib/python3.11/site-packages/modlib/devices/frame.py
+    - Purpose: Representation of the available image types provided in `frame.image`. Can be used as e.g. `IMAGE_TYPE.VGA`
+- **Example Usage**:
+    ```python
+    import cv2
+    from datetime import datetime
+    from modlib.apps import Annotator
+    from modlib.devices import AiCamera, Frame, IMAGE_TYPE
+    from modlib.models.zoo import EfficientNetV2B1
+    from modlib.devices.sources import Images
+    from modlib.devices.imx500 import isp
+    
+    
+    device = AiCamera(data_injection=True, frame_rate=20)
+    model = EfficientNetV2B1()
+    device.deploy(model)
+    
+    source = Images("examples/assets/imagenet_samples")
+    annotator = Annotator(thickness=2, text_thickness=1, text_scale=0.4)
+    
+    
+    with device:
+        for img in source:
+            # 1. Prepare input tensor (like IMX500 ISP)
+            dsp_input_tensor, roi = isp.prepare_tensor_like_isp(
+                img=img,
+                model=model,
+                src_color_format=source.color_format
+            )
+    
+            # 2. Inject input tensor
+            detections = device.inject(dsp_input_tensor)
+    
+            # 3. Visualize result with a Frame
+            h, w, c = img.shape
+            frame = Frame(
+                timestamp=datetime.now(),
+                image=img, image_type=IMAGE_TYPE.SOURCE,
+                color_format=source.color_format,
+                width=w, height=h, channels=c,
+                detections=detections, roi=roi,
+                new_detection=True, fps=0, dps=0,
+                frame_count=0,
+            )
+    
+            for i, label in enumerate([model.labels[id] for id in frame.detections.class_id[:3]]):
+                text = f"{i + 1}. {label}: {frame.detections.confidence[i]:.2f}"
+                cv2.putText(frame.image, text, (50, 30 + 40 * (i + 1)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (100, 0, 100), 2)
+    
+            frame.display()
+    ```
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize self.  See help(type(self)) for accurate signature.
+        - Args:
+
+##### InterpreterClient Module
+    - File: .venv/lib/python3.11/site-packages/modlib/devices/interpreters/client.py
+    - Purpose: Client Modlib device for a external interpreter server.
+    
+    Use it as a development device to build Modlib applications or
+    to evaluate models against a running interpreter server.
+    
+    The server must expose:
+    - `POST /init` to load a model and return a session id
+    - `GET /input_tensor_size/<session_id>` to get the input tensor size for that model
+    - `POST /infer/<session_id>` to run inference for that session
+    - `DELETE /session/<session_id>` to close the session
+    
+    Please read the interpreter server documentation for more details on how to build and run it.
+- **Example Usage**:
+    ```python
+    import cv2
+    import numpy as np
+    from datetime import datetime
+    from modlib.apps import Annotator
+    from modlib.devices import InterpreterClient, Frame, IMAGE_TYPE, Dataset
+    from modlib.models import COLOR_FORMAT, MODEL_TYPE, FRAMEWORK_FORMAT, Model
+    from modlib.models.evals import EvaluationSample, ClassificationEvaluator
+    from modlib.models.post_processors import pp_cls
+    from modlib.models.pre_processors import aspect_ratio_preserving_resize_with_pad, model_preprocess
+    
+    
+    # replace with proper models directory
+    MODELS="/path/to/models"
+    
+    
+    class YOLOClassification(Model):
+        def __init__(self):
+            # NOTE: This Sample Code is meant to be used with AI models such as Ultralytics YOLO. Please note that
+            # the different license may apply to the AI model you would use and we may not be able to comply
+            # your request for source codes except for the Sample Code. For example, Ultralytics YOLO is licensed by
+            # Ultralytics Enterprise License, Ultralytics Academic License, or AGPL-3.0 License. If you want
+            # to use the Ultralytics YOLO for commercial purpose, you need to purchase the Enterprise License from below.
+            # [https://ultralytics.com/license]
+    
+            super().__init__(
+                model_file=f"{MODELS}/yolo11n-cls_imx_model/packerOut.zip",
+                model_type=MODEL_TYPE.CONVERTED,
+                color_format=COLOR_FORMAT.RGB,
+                preserve_aspect_ratio=False,
+            )
+            self.labels = np.genfromtxt(f"{MODELS}/yolo11n-cls_imx_model/labels.txt", dtype=str, delimiter="\n")
+            self.norm_mean = 0.0
+            self.norm_std = 255.0
+    
+        def _resize_fn(self, image):
+            return aspect_ratio_preserving_resize_with_pad(image, self.input_tensor_size, pad_values=114)
+    
+        def pre_process(self, image, src_color_format, resize_fn=None):
+            return model_preprocess(
+                x=image,
+                resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+                src_color_format=src_color_format,
+                model_color_format=self.color_format,
+                norm_mean=self.norm_mean,
+                norm_std=self.norm_std,
+                framework_format=FRAMEWORK_FORMAT.CHW,
+            )
+    
+        def post_process(self, output_tensors):
+            return pp_cls(output_tensors)
+    
+    
+    model = YOLOClassification()
+    device = InterpreterClient(endpoint="http://localhost:8000")
+    device.deploy(model, data={
+        # Path in mounted models directory of inference server
+        "model_uri": "/models/yolo11n-cls_imx_model/yolo11n-cls_imx.onnx",
+        "options": {"is_quantized": True},
+    })
+    
+    dataset = Dataset(
+        images_dir="examples/assets/imagenet_dataset",
+        dataset_id_function=lambda path: int(path.parent.name)
+    )
+    
+    all_samples: list[EvaluationSample] = []
+    annotator = Annotator(thickness=2, text_thickness=1, text_scale=0.4)
+    
+    
+    with device:
+        for sample in dataset:
+            # 1. Prepare input tensor (prepare according to model preprocessing requirements)
+            it_image, it, roi = model.pre_process(
+                image=sample.image,
+                src_color_format=sample.image_color_format,
+                resize_fn=None,  # Use model's own resize function
+            )
+    
+            # 2. Run model inference
+            detections = device.infer(it)
+    
+            # 3. Store Evaluation Sample
+            all_samples.append(EvaluationSample(
+                roi=roi,
+                detections=detections,
+                dataset_sample=sample,
+            ))
+    
+            # Vizualize result on sample image
+            h, w, c = sample.image.shape
+            frame = Frame(
+                timestamp=datetime.now(),
+                image=sample.image.copy(), image_type=IMAGE_TYPE.SOURCE,
+                color_format=sample.image_color_format,
+                width=w, height=h, channels=c,
+                detections=detections, roi=roi,
+                new_detection=True, fps=0, dps=0,
+                frame_count=0,
+            )
+    
+            for i, label in enumerate([model.labels[id] for id in detections.class_id[:3]]):
+                text = f"{i + 1}. {label}: {detections.confidence[i]:.2f}"
+                cv2.putText(frame.image, text, (50, 30 + 40 * (i + 1)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (100, 0, 100), 2)
+    
+            frame.display()
+    
+    # Evaluate
+    evaluator = ClassificationEvaluator(
+        ground_truth="examples/assets/imagenet_dataset",
+        labels=model.labels,
+    )
+    
+    evaluator.evaluate(all_samples)
+    evaluator.visualize(all_samples, output_dir="tmp/annotated_images_cls")
+    ```
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize the interpreter client device.
+        - Args:
+            source: typing.Optional[modlib.devices.sources.Source] - Optional source that yields input frames to process. Defaults to None.
+            endpoint: typing.Optional[str] - Base URL of the interpreter server.
+            headless: typing.Optional[bool] - Disable image processing when set. Defaults to False.
+            timeout: typing.Optional[int] - Optional timeout in seconds for the device loop. Defaults to None.
+            enable_input_tensor: typing.Optional[bool] - When enabling input tensor, `frame.image` will be replaced by the input tensor image.
+
+    - **`__iter__`**: (Method)
+        - Purpose: Initialize the frame iterator.
+    - **`check_timeout`**: (Method)
+        - Purpose: Utility method for checking if the specified timeout if it has been set.
+        Stops the stream iterator if the timeout has been exceeded.
+    - **`deploy`**: (Method)
+        - Purpose: Deploy/load a model on the remote interpreter server.
+        This will send a POST request `requests.post(<endpoint>/init, json=data)` to the interpreter server.
+        And expect a response with a session id in the `session_id` field if successful.
+        - Args:
+            model: <class 'modlib.models.model.Model'> - Model instance used for pre- and post-processing.
+            data: <class 'dict'> - Payload sent in the POST request to the `/init` endpoint.
+
+    - **`infer`**: (Method)
+        - Purpose: Run inference on the remote interpreter server.
+        And return the post-processed result.
+        - Args:
+            input_tensor: <class 'numpy.ndarray'> - Input tensor.
+        - Returns: typing.Union[modlib.models.results.Classifications, modlib.models.results.Detections, modlib.models.results.Poses, modlib.models.results.Segments, modlib.models.results.InstanceSegments, modlib.models.results.Anomaly]
+            Post-processed result.
+    - **`stop`**: (Method)
+        - Purpose: Close the active interpreter session.
+        This will send a DELETE request to the interpreter server.
+        `requests.delete(<endpoint>/session/<session_id>)` and expect a 200 OK response.
 #### modlib.models Modules
 ##### Anomaly Module
     - File: .venv/lib/python3.11/site-packages/modlib/models/results.py
@@ -1096,6 +1680,15 @@ It includes detailed documentation, examples, and reusable modules to simplify a
         - Purpose: Returns a copy of the current detections.
     - **`json`**: (Method)
         - Purpose: Convert the Detections object to a JSON-serializable dictionary.
+##### FRAMEWORK_FORMAT Module
+    - File: .venv/lib/python3.11/site-packages/modlib/models/model.py
+    - Purpose: Representation of the available framework formats.
+    Can be used as e.g. `FRAMEWORK_FORMAT.HWC`
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize self.  See help(type(self)) for accurate signature.
+        - Args:
+
 ##### InstanceSegments Module
     - File: .venv/lib/python3.11/site-packages/modlib/models/results.py
     - Purpose: Data class for instance segmentation results.
@@ -1144,6 +1737,11 @@ It includes detailed documentation, examples, and reusable modules to simplify a
         - Purpose: Convert the InstanceSegments object to a JSON-serializable dictionary.
     - **`oriented_bbox`**: (Method)
         - Purpose: Calculate oriented bounding boxes for each instance mask. Can't be used in tracker
+    - **`to_segments`**: (Method)
+        - Purpose: Convert instance segmentation masks to a simple 2D semantic segmentation mask.
+        If label_mapping is provided, map the class_ids to the new labels.
+        For each pixel, selects the instance with maximum confidence among all instances
+        covering that pixel, and assigns that instance's class_id to the output mask.
 ##### MODEL_TYPE Module
     - File: .venv/lib/python3.11/site-packages/modlib/models/model.py
     - Purpose: Representation of the available model types corresponding to the provided model file.
@@ -1182,10 +1780,13 @@ It includes detailed documentation, examples, and reusable modules to simplify a
         and is only used for data-injection and on Interpreter devices.
         - Args:
             image: <class 'numpy.ndarray'> - The input image to be processed.
-        - Returns: typing.Tuple[numpy.ndarray, numpy.ndarray]
+            src_color_format: <class 'modlib.models.model.COLOR_FORMAT'> - The color format of the input image. Defaults to `COLOR_FORMAT.BGR` (from cv2.imread).
+            resize_fn: typing.Optional[typing.Callable[[numpy.ndarray], typing.Tuple[numpy.ndarray, modlib.models.results.ROI]]] - Optional resize function to use for the resizing/cropping/padding step. If no resize function is provided, the model's own `_resize_fn` function will be used.
+        - Returns: typing.Tuple[numpy.ndarray, numpy.ndarray, modlib.models.results.ROI]
             A tuple containing:
             - Preprocessed image as a NumPy array (input_tensor_image).
             - Input tensor ready for model inference.
+            - ROI of the input tensor.
 ##### Poses Module
     - File: .venv/lib/python3.11/site-packages/modlib/models/results.py
     - Purpose: Data class for pose estimation results.
@@ -1206,7 +1807,7 @@ It includes detailed documentation, examples, and reusable modules to simplify a
             bbox: Any - Optional bounding box related to the detected poses
 
     - **`__iter__`**: (Method)
-        - Purpose: To iterate over the detections. 
+        - Purpose: To iterate over the detections.
         - Yielded Values:
             - keypoints
             - confidence
@@ -1258,12 +1859,12 @@ It includes detailed documentation, examples, and reusable modules to simplify a
     - File: .venv/lib/python3.11/site-packages/modlib/models/results.py
     - Purpose: Data class for segmentation results.
 - **Attributes**:
-    - mask: np.ndarray - 2D Mask arrays containing the id for each identified segment in the input tensor.
+    - mask: np.ndarray - 2D Mask arrays containing the id for each identified segment in the input tensor. Mask background pixels are represented by -1 (/255) for the uint8 array.
 - **Key Methods**
     - **` __init__ `**: (Constructor)
         - Purpose: Initialize self.  See help(type(self)) for accurate signature.
         - Args:
-            mask: <class 'numpy.ndarray'> - 2D Mask arrays containing the id for each identified segment in the input tensor.
+            mask: <class 'numpy.ndarray'> - 2D Mask arrays containing the id for each identified segment in the input tensor. Mask background pixels are represented by -1 (/255) for the uint8 array.
 
     - **`compensate_for_roi`**: (Method)
         - Purpose: Compensate the segmentation mask for the given ROI.
@@ -1287,6 +1888,30 @@ It includes detailed documentation, examples, and reusable modules to simplify a
             instance_args: <class 'object'> - Arguments for instance segmentation.
         - Returns: InstanceSegments
             An InstanceSegments object with the instance segmentation masks, class ids.
+##### TASK_TYPE Module
+    - File: .venv/lib/python3.11/site-packages/modlib/models/model.py
+    - Purpose: Representation of the supported task types.
+    Can be used as e.g. `TASK_TYPE.DETECTION`
+- **Key Methods**
+    - **` __init__ `**: (Constructor)
+        - Purpose: Initialize self.  See help(type(self)) for accurate signature.
+        - Args:
+
+##### model_preprocess (Function)
+    - **Arguments**:
+    x: <class 'numpy.ndarray'> - Input image
+    resize_fn: typing.Callable[[numpy.ndarray], typing.Tuple[numpy.ndarray, modlib.models.results.ROI]] - The resize function to use for the resizing/cropping/padding step
+    src_color_format: <class 'modlib.models.model.COLOR_FORMAT'> - The color format of the input image
+    model_color_format: <class 'modlib.models.model.COLOR_FORMAT'> - The color format of the model
+    norm_mean: typing.Union[float, numpy.ndarray] - The mean value to use for normalization
+    norm_std: typing.Union[float, numpy.ndarray] - The standard deviation value to use for normalization
+    framework_format: <class 'modlib.models.model.FRAMEWORK_FORMAT'> - The framework format of the model
+    General model pre-processing function.
+    It performs the following steps:
+    1. resize/crop/padding. According to the supplied `resize_fn`.
+    2. convert to model color format (given the input `src_color_format` and `model_color_format`)
+    3. model normalize (given the `norm_mean` and `norm_std`)
+    4. set model framework order (given the `framework_format` of the model)
 #### modlib.models.zoo Modules
 ##### DeepLabV3Plus (Segmentation Model)
     - File: .venv/lib/python3.11/site-packages/modlib/models/zoo/models.py

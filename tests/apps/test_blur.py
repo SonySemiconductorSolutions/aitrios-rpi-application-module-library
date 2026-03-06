@@ -31,6 +31,3 @@ def test_blur_object(test_apps_device):
 
 def test_blur_face(test_apps_device):
     pass
-    # TODO: add posnet to test_apps 
-
-            

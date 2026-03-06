@@ -33,9 +33,9 @@ class RepeatingMockPlayback(Playback):
             headless=True,
             timeout=None,
         ):
-        
+
         super().__init__(recording, codec, headless, timeout)
-        
+
         self.repeat_frame_index = repeat_frame_index
         self.repeat_count = repeat_count
         self.current_count = 0
@@ -49,7 +49,7 @@ class RepeatingMockPlayback(Playback):
             if frame is None:
                 raise IndexError(f"Frame index {index} out of range in recording.")
         return frame
-    
+
     def __iter__(self):
         self.current_count = 0
         return self
@@ -122,27 +122,27 @@ def test_capture_repeating(test_apps_device):
 
 
 def test_classifier(test_classifier_device):
-    
+
     expected_classes = [
         113,       # (a_snail.png): 'snail'
         549,       # (b_envelope.jpg): 'envelope'
         985        # (c_daisy.jpg): 'daisy'
     ]
-    
+
     with test_classifier_device as stream:
         for i, frame in enumerate(stream):
             assert frame.detections.class_id[0] == expected_classes[i], f"Detected class {frame.detections.class_id[0]} does not match expected class {expected_classes[i]}"
 
 
 def test_detector(test_detector_device):
-    
+
     # Each entry is a dict: {class_id: expected_count, ...}
     expected_class_counts = [
         {11: 1},          # (724.jpg): 1 stop sign
         {0: 1, 30: 1},          # (785.jpg): 1 person, 1 skis
         {0: 1, 38: 1, 32: 1}    # (885.jpg): 1 person, 1 tennis racket, 1 sports ball
     ]
-    
+
     with test_detector_device as stream:
         for i, frame in enumerate(stream):
 

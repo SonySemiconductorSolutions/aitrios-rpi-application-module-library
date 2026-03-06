@@ -144,6 +144,10 @@ class Triton(Device):
             timeout=timeout,
         )
 
+    @property
+    def _running(self):
+        return self.config._running
+
     def _initiate(self, headless: bool, enable_input_tensor: bool, frame_rate: float, roi_it: ROI, roi_hires: ROI):
         # NOTE: Derive how to calculate the image size from the binning factor
         # These are the perceived images when testing
@@ -197,8 +201,8 @@ class Triton(Device):
         # Initialize shared memory
         self._allocator.allocate(
             image_shape=(0, 0, 0) if self.headless or self.enable_input_tensor else (hires_w, hires_h, 3),
-            input_tensor_shape=self.model.input_tensor_shape if self.enable_input_tensor else (0, 0, 0),
-            output_tensor_shape_list=self.model.output_tensor_shape_list,
+            input_tensor_shape=(*self.model.input_tensor_size, 3) if self.enable_input_tensor else (0, 0, 0),
+            output_tensor_shape_list=self.model.output_tensor_sizes,
         )
 
         # Settings
@@ -274,8 +278,8 @@ class Triton(Device):
                 count=req.input_tensor.data_size // np.dtype(np.uint8).itemsize,
                 dtype=np.uint8,
             )
-            .reshape((c, h, w))
-            .astype(np.int32)[(2, 1, 0), :, :]
+            .reshape((c, h, w))  # CHW
+            .astype(np.int32)
         )
 
         norm_val = self.model.info["input_tensor"]["norm_val"]
@@ -285,7 +289,7 @@ class Triton(Device):
         for i in [0, 1, 2]:
             r1[i] = ((((r1[i] << norm_shift[i]) - norm_val[i]) << div_shift) // div_val[i]) & 0xFF
 
-        self.input_tensor_image = np.transpose(r1, (1, 2, 0)).astype(np.uint8).copy()
+        self.input_tensor_image = np.transpose(r1, (1, 2, 0)).astype(np.uint8).copy()  # CHW -> HWC
 
     def _parse_request(self, req_idx):
         req = self._allocator.get_request(req_idx)
@@ -334,6 +338,7 @@ class Triton(Device):
                 # Skip adding to frame_queue
                 return
             image = self.input_tensor_image
+            color_format = self.model.color_format
         else:
             rh, rw, rc = req.image.height, req.image.width, req.image.num_channels
             image = cv2.resize(
@@ -345,6 +350,8 @@ class Triton(Device):
                 ).reshape((rh, rw, rc)),  # copy required: the cv2 resize creates a copy
                 self.image_size,
             )
+            color_format = COLOR_FORMAT.BGR
+
         h, w, c = image.shape
 
         with self._frameslock:
@@ -360,8 +367,7 @@ class Triton(Device):
                     new_detection=new_detection,
                     fps=self.fps.value,
                     dps=self.dps.value,
-                    color_format=COLOR_FORMAT.BGR,
-                    input_tensor=None,
+                    color_format=color_format,
                     roi=self.roi,
                 )
             )
@@ -606,8 +612,7 @@ class Triton(Device):
 
         - `network.fpk` file available at `model.network_file_path`
         - `fpk_info.dat` file available at `model.info_file_path`
-        - `input_tensor_shape` variable available at `model.input_tensor_shape`
-        - `output_tensor_shape_list` variable available at `model.output_tensor_shape_list`
+        - `info` dict available at `model.info` which specifies the input tensor size and output tensor sizes E.g. `model.info = {'input_tensor': {'width': 224, 'height': 224}, 'output_tensor_sizes': [(1000,)]}`
 
         Args:
             model: The model to be uploaded to device.
@@ -625,13 +630,17 @@ class Triton(Device):
             raise AttributeError(
                 "Model must have 'info_file_path' attribute for now. E.g. `model.info_file_path = ./path/to/fpk_info.dat`"
             )
-        if not hasattr(model, "input_tensor_shape"):
+        try:
+            _ = model.input_tensor_size
+        except AttributeError:
             raise AttributeError(
-                "Model must have 'input_tensor_shape' attribute for now. E.g. `model.input_tensor_shape = (320, 320, 3)`"
+                "Model must have specify input_tensor_size in info dict E.g. `model.info = {'input_tensor': {'width': 224, 'height': 224}}`"
             )
-        if not hasattr(model, "output_tensor_shape_list"):
+        try:
+            _ = model.output_tensor_sizes
+        except AttributeError:
             raise AttributeError(
-                "Model must have 'output_tensor_shape_list' attribute for now. E.g. `model.output_tensor_shape_list = [(100, 4), (100,), (100,), (1,)]`"
+                "Model must have specify output_tensor_sizes in info dict E.g. `model.info = {'output_tensor_sizes': [(1000,)]}`"
             )
 
         # TODO sort out Triton packager
@@ -649,9 +658,10 @@ class Triton(Device):
             raise FileNotFoundError(f"Info file not found: {model.info_file_path}")
 
         # Uploading the info file is also extracting relevant model information from the fpk_info struct
-        self.model.info = triton_cpp.upload_file(
+        info_input_tensor = triton_cpp.upload_file(
             model.info_file_path, CameraFileType.FILE_DEEP_NEURAL_NETWORK_INFO.value
         )
+        self.model.info["input_tensor"] |= info_input_tensor.get("input_tensor")
         triton_cpp.upload_file(model.network_file_path, CameraFileType.FILE_DEEP_NEURAL_NETWORK_NETWORK.value)
 
     def upload_firmware(self, firmware_file_path: str, loader_file_path: str):
@@ -703,12 +713,19 @@ class Triton(Device):
         with self._frameslock:
             while not self._frames:
                 self._frame_ready.wait()  # Wait for available frame
-            frame = self._frames.pop(-1)
-            if self._frames:
-                logger.debug(f"Main thread is dropping {len(self._frames)} frames.")
-                self._frames.clear()
 
-        self.fps.update()
+            # We only allow the main thread to pop and clear the frame buffer
+            # Calling get_frame() from a thread other than the main thread is allowed and
+            # returns the last frame in the buffer for processing
+            if threading.current_thread() is threading.main_thread():
+                frame = self._frames.pop(-1)
+                if self._frames:
+                    logger.debug(f"Main thread is dropping {len(self._frames)} frames.")
+                    self._frames.clear()
+                self.fps.update()
+            else:
+                frame = self._frames[-1]
+
         return frame
 
     def __next__(self) -> Frame:

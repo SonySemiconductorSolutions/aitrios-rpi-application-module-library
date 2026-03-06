@@ -14,9 +14,9 @@
 # limitations under the License.
 #
 
-from modlib.devices import KerasInterpreter, Video
+from modlib.devices import Video, InterpreterClient
 
-device = KerasInterpreter(source=Video("./examples/assets/palace.mp4"))
+device = InterpreterClient(source=Video("./examples/assets/palace.mp4"))
 
 with device as stream:
     for frame in stream:

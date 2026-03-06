@@ -18,11 +18,11 @@ import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, Callable, get_type_hints
 
 import numpy as np
 
-from .results import Anomaly, Classifications, Detections, Poses, Segments, InstanceSegments
+from .results import Anomaly, Classifications, Detections, Poses, Segments, InstanceSegments, ROI
 
 
 @dataclass
@@ -47,6 +47,39 @@ class COLOR_FORMAT:
 
     RGB = "RGB"
     BGR = "BGR"
+
+
+@dataclass
+class FRAMEWORK_FORMAT:
+    """
+    Representation of the available framework formats.
+    Can be used as e.g. `FRAMEWORK_FORMAT.HWC`
+    """
+
+    HWC = "HWC"  # (H, W, C), typically tensorflow
+    CHW = "CHW"  # (C, H, W), typically pytorch
+
+
+@dataclass
+class TASK_TYPE:
+    """
+    Representation of the supported task types.
+    Can be used as e.g. `TASK_TYPE.DETECTION`
+    """
+
+    CLASSIFICATION = "classification"
+    DETECTION = "detection"
+    SEGMENTATION = "segmentation"
+    INSTANCE_SEGMENTATION = "instance_segmentation"
+    POSE = "pose"
+    ANOMALY = "anomaly"
+
+
+# NOTE: Optionally define a different resize/cropping/padding strategy with the model pre-process method
+#       This function takes in the image as input and should return the resulting image and ROI
+#       Any number of additional arguments can be passed to the function as partial arguments
+#       E.g. resize_fn=partial(my_custom_function, my_arg=<value>)
+ResizeFn = Callable[[np.ndarray], Tuple[np.ndarray, ROI]]
 
 
 class Model(ABC):
@@ -113,9 +146,14 @@ class Model(ABC):
         Returns:
             The post-processed result.
         """
-        pass
+        ...
 
-    def pre_process(self, image: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
         """
         Optional pre-processing function the model requires for the input image.
         The pre-processing function is mimicking the SPI camera functionality,
@@ -123,13 +161,16 @@ class Model(ABC):
 
         Args:
             image: The input image to be processed.
+            src_color_format: The color format of the input image. Defaults to `COLOR_FORMAT.BGR` (from cv2.imread).
+            resize_fn: Optional resize function to use for the resizing/cropping/padding step. If no resize function is provided, the model's own `_resize_fn` function will be used.
 
         Returns:
             A tuple containing:
             - Preprocessed image as a NumPy array (input_tensor_image).
             - Input tensor ready for model inference.
+            - ROI of the input tensor.
         """
-        pass
+        ...
 
     @property
     def input_tensor_size(self):
@@ -138,9 +179,13 @@ class Model(ABC):
         Only available after calling `_get_network_info` on the model's info file.
         """
         if self.__info and "input_tensor" in self.__info:
-            return (self.__info["input_tensor"]["width"], self.__info["input_tensor"]["height"])
-        else:
-            raise ValueError("Input tensor size not available.")
+            input_tensor = self.__info["input_tensor"]
+            width = input_tensor.get("width")
+            height = input_tensor.get("height")
+            if width is not None and height is not None:
+                return (int(width), int(height))
+
+        raise ValueError("Input tensor size not available")
 
     @property
     def output_tensor_sizes(self):
@@ -177,10 +222,9 @@ class Model(ABC):
             # self.__info = self.__get_network_info_converted(self.model_file)
             self.__info = self.__get_network_info_rpk(info_file)
         elif self.model_type in (MODEL_TYPE.KERAS, MODEL_TYPE.ONNX) and info_file is not None:
-            # TODO: replace info file by the converted file
-            # NOTE: Assumption is that all info is available in packerOut.zip and can be parsed there
-            # But for now the info file is only used in the AiCamera passing the rpk file
-            self.__info = self.__get_network_info_rpk(info_file)
+            raise ValueError(
+                "Retrieving network info for Keras and ONNX models should be done through the Interpreter device."
+            )
         else:
             raise ValueError(f"Parsing network info for type {self.model_type}, not supported")
 
@@ -194,11 +238,12 @@ class Model(ABC):
             "input_tensor": {
                 "width": None,
                 "height": None,
-                "input_format": None,
+                "input_format": None,  # RGB or BGR
                 "norm_val": None,
                 "norm_shift": None,
                 "div_val": None,
                 "div_shift": None,
+                "dtype": None,  # signed (int8) or unsigned (uint8)
             },
             "network_info": {},
         }
@@ -286,6 +331,7 @@ class Model(ABC):
         inputTensorNorm_K02 = int(info["network_info"]["network"][0]["inputTensorNorm_K02"], 0)
         inputTensorNorm_K20 = int(info["network_info"]["network"][0]["inputTensorNorm_K20"], 0)
         inputTensorNorm_K11 = int(info["network_info"]["network"][0]["inputTensorNorm_K11"], 0)
+        info["input_tensor"]["dtype"] = np.uint8 if ((inputTensorNorm_K03 >> 12) & 1) == 0 else np.int8
         info["input_tensor"]["input_format"] = input_format
         if input_format == "RGB" or input_format == "BGR":
             norm_val_0 = (
@@ -331,47 +377,49 @@ class Model(ABC):
 
         return info
 
-    @staticmethod
-    def __get_network_info_converted(packerOut_file):
-        import xml.etree.ElementTree as ET
-        import zipfile
+    @property
+    def task_type(self) -> TASK_TYPE:
+        """
+        The task type of the model, which is inferred from the return type of the post processor:
+            - Classifications -> TASK_TYPE.CLASSIFICATION
+            - Detections -> TASK_TYPE.DETECTION
+            - Segments -> TASK_TYPE.SEGMENTATION
+            - InstanceSegments -> TASK_TYPE.INSTANCE_SEGMENTATION
+            - Poses -> TASK_TYPE.POSE
+            - Anomaly -> TASK_TYPE.ANOMALY
 
-        with zipfile.ZipFile(packerOut_file, "r") as zip_file:
-            with zip_file.open("dnnParams.xml") as xml_file:
-                tree = ET.parse(xml_file)
-                root = tree.getroot()
-
-                # Select the first network from the networks (networks[0])
-                network = root.find(".//network")
-
-                input_tensor = network.find(".//inputTensor")
-                input_shape = [int(dim.get("size")) for dim in input_tensor.find("dimensions")]
-
-                output_shapes = []
-                for output_tensor in network.findall(".//outputTensor"):
-                    shape = [int(dim.get("size")) for dim in output_tensor.find("dimensions")]
-                    output_shapes.append(shape)
-
-        # TODO: extract all required information from the packerout file.
-        # info = {
-        #     "input_tensor": {
-        #         "width": None,
-        #         "height": None,
-        #         "input_format": None,
-        #         "norm_val": None,
-        #         "norm_shift": None,
-        #         "div_val": None,
-        #         "div_shift": None,
-        #     },
-        #     "network_info": {},
-        # }
-
-        info = {
-            "input_tensor": {
-                "width": input_shape[1],
-                "height": input_shape[0],
-            },
-            "output_tensor_sizes": output_shapes,
+        Returns:
+            The task type of the model.
+        """
+        # Type mapping from result types to TASK_TYPE
+        TYPE_MAP = {
+            Classifications: TASK_TYPE.CLASSIFICATION,
+            Detections: TASK_TYPE.DETECTION,
+            Segments: TASK_TYPE.SEGMENTATION,
+            InstanceSegments: TASK_TYPE.INSTANCE_SEGMENTATION,
+            Poses: TASK_TYPE.POSE,
+            Anomaly: TASK_TYPE.ANOMALY,
         }
 
-        return info
+        # Get the return type annotation from the post_process method
+        # Use the class method to get proper type hints
+        hints = get_type_hints(type(self).post_process)
+        return_type = hints.get("return")
+        if return_type is None:
+            raise ValueError(
+                "Error inferring task type: Could not determine return type from post_process method.\n"
+                "The task type can only be inferred when the result type hint is included in the post_process function.\n"
+                "Please add a return type annotation to your post_process method.\n\n"
+                "Example:\n"
+                "    def post_process(self, output_tensors: List[np.ndarray]) -> Classifications:\n"
+                "        ...\n\n"
+                "Valid return types are: Classifications, Detections, Poses, Segments, InstanceSegments, or Anomaly."
+            )
+
+        # Look up the task type from the return type
+        task_type = TYPE_MAP.get(return_type)
+        if task_type is None:
+            expected_types = ", ".join([t.__name__ for t in TYPE_MAP.keys()])
+            raise ValueError(f"Unexpected return type. Expected one of {{{expected_types}}} but got {return_type}")
+
+        return task_type

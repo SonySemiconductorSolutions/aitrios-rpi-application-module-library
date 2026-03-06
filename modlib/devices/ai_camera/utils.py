@@ -26,10 +26,18 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+import atexit
 import importlib.util
+import inspect
+import json
 import os
 import sys
 import sysconfig
+import tempfile
+import logging
+
+logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(name)s]  %(levelname)s %(message)s")
+logger = logging.getLogger(__name__.split(".")[-1])
 
 
 class Fallback:
@@ -38,8 +46,16 @@ class Fallback:
         self.pkg_path = pkg_path
 
     def __getattr__(self, name):
+        is_local_libcamera = os.environ.get("MODLIB_LIBCAMERA", "").upper() == "LOCAL" and self.pkg == "libcamera"
+        extra = (
+            """\nWhen running locally with MODLIB_LIBCAMERA=LOCAL make sure to make the local aarch64-linux-gnu library path available to python LD_LIBRARY_PATH e.g.:\n
+            export LD_LIBRARY_PATH=/usr/local/lib/aarch64-linux-gnu:$LD_LIBRARY_PATH
+            """
+            if is_local_libcamera
+            else ""
+        )
         raise ImportError(
-            f"{self.pkg} module is not available. Check if it is installed and the path is correct: {self.pkg_path}"
+            f"{self.pkg} module is not available. Check if it is installed and the path is correct: {self.pkg_path}{extra}"
         )
 
 
@@ -96,11 +112,63 @@ def _import_global_package(package_name, package_path):
     return pkg
 
 
+def _inspect_libcamera_source(libcamera):
+    """Print diagnostic information about which libcamera module is being used."""
+    module_path = inspect.getfile(libcamera)
+    pkg_dir = os.path.dirname(module_path)
+    so_path = (
+        next(
+            (
+                os.path.join(pkg_dir, name)
+                for name in os.listdir(pkg_dir)
+                if name.startswith("_libcamera") and name.endswith(".so")
+            ),
+            None,
+        )
+        if os.path.exists(pkg_dir)
+        else None
+    )
+
+    lines = [f"Module: {module_path}", f"Extension: {so_path or '(not found)'}"]
+    if so_path:
+        try:
+            deps = [line.strip() for line in os.popen(f"ldd {so_path}").read().splitlines() if "libcamera" in line]
+            lines.append(
+                "Dependencies:" + ("\n\t" + "\n\t".join(deps) if deps else " (no libcamera dependencies found)")
+            )
+        except Exception as e:
+            lines.append(f"Dependencies: (failed to check: {e})")
+
+    logger.info("[libcamera] Modlib licamera configuration: \n" + "\n".join(lines) + "\n")
+
+
+def _check_libcamera_min_version(version_str: str, min_ver: tuple[int, int]) -> None:
+    """Raise RuntimeError if libcamera version is below min_ver (e.g. v0.6.0+rpt... -> (0,6))."""
+    try:
+        parts = version_str.strip().lstrip("vV").split("+")[0].split(".")
+        major, minor = int(parts[0]), int(parts[1]) if len(parts) > 1 else 0
+    except (ValueError, AttributeError, IndexError):
+        major, minor = -1, -1
+    if (major, minor) < min_ver:
+        raise RuntimeError(f"libcamera {version_str!r}; Modlib requires libcamera v{min_ver[0]}.{min_ver[1]} or newer. ")
+
+
 def _import_libcamera():
+    # Check environment variable to determine which libcamera to use
+    use_local = os.environ.get("MODLIB_LIBCAMERA", "").upper() == "LOCAL"
+    if use_local:
+        package_path = "/usr/local/lib/python3/dist-packages/libcamera"
+    else:
+        package_path = "/usr/lib/python3/dist-packages/libcamera"  # Default: use system-installed libcamera
+
     # Import from globally installed package
-    libcamera = _import_global_package("libcamera", "/usr/lib/python3/dist-packages/libcamera")
+    libcamera = _import_global_package("libcamera", package_path)
     if isinstance(libcamera, (Fallback, VersionMismatchFallback)):
         return libcamera
+
+    # Print diagnostic information about which libcamera module is being used
+    if use_local:
+        _inspect_libcamera_source(libcamera)
 
     # LIBCAMERA CONFIGURATION
     def libcamera_transforms_eq(t1, t2):
@@ -127,10 +195,75 @@ def _import_libcamera():
     libcamera.Size.to_tuple = _libcamera_size_to_tuple
     libcamera.Rectangle.to_tuple = _libcamera_rect_to_tuple
 
+    try:
+        version = libcamera.CameraManager.version
+    except Exception:
+        version = "unknown"
+    _check_libcamera_min_version(version, min_ver=(0, 6))
+    print(f"Loaded libcamera with version: {version}")
     return libcamera
 
 
-libcamera = _import_libcamera()
+_libcamera_module = None
+
+
+def cleanup_libcamera_config_file(config_file_path: str):
+    """
+    Clean up the temporary libcamera config file.
+    This should be called after libcamera has been loaded and read the config file.
+
+    Args:
+        config_file_path: Path to the config file to clean up.
+    """
+    try:
+        if os.path.exists(config_file_path):
+            os.unlink(config_file_path)
+    except OSError:
+        # Ignore errors during cleanup (file might be locked or already deleted)
+        pass
+
+
+def _get_libcamera():
+    global _libcamera_module
+    if _libcamera_module is None:
+        _libcamera_module = _import_libcamera()
+    return _libcamera_module
+
+
+class LibcameraProxy:
+    """Proxy class that lazily loads libcamera on first time access."""
+
+    def __getattr__(self, name):
+        return getattr(_get_libcamera(), name)
+
+    def __setattr__(self, name, value):
+        if name.startswith("_"):
+            super().__setattr__(name, value)
+        else:
+            setattr(_get_libcamera(), name, value)
+
+
+def setup_libcamera_config_file(camera_timeout_value_ms: int):
+    """
+    Setup the libcamera config file for data injection mode.
+    This must be called before libcamera is imported.
+
+    Args:
+        camera_timeout_value_ms: The timeout value in milliseconds for the camera.
+    """
+    config = {"version": 1.0, "target": "pisp", "pipeline_handler": {"camera_timeout_value_ms": camera_timeout_value_ms}}
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        json.dump(config, f, indent=2)
+        config_file = f.name
+
+    os.environ["LIBCAMERA_RPI_CONFIG_FILE"] = config_file
+
+    # Clean up the temporary config file after program exit
+    atexit.register(cleanup_libcamera_config_file, config_file)
+
+
+libcamera = LibcameraProxy()
 
 
 # LIBCAMERA CONFIGURATION UTILS

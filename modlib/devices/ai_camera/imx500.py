@@ -36,6 +36,7 @@ import time
 from tqdm import tqdm
 
 from .v4l2 import (
+    VIDIOC_G_CTRL,
     VIDIOC_S_CTRL,
     VIDIOC_S_EXT_CTRLS,
     VIDIOC_G_EXT_CTRLS,
@@ -58,13 +59,16 @@ SENSOR_W = 4056
 SENSOR_H = 3040
 
 FW_NETWORK_STAGE = 2
+INJECTION_CMP_FRM_CTRL_ID = 0x00982905
+INPUT_TENSOR_FD_CTRL_ID = 0x00982904
+ENABLE_INJECTION_CTRL_ID = 0x00982903
 GET_DEVICE_ID_CTRL_ID = 0x00982902
 NETWORK_FW_FD_CTRL_ID = 0x00982901
 ROI_CTRL_ID = 0x00982900
 
 
 class IMX500:
-    def __init__(self, network_file: str, camera_id: str = ""):
+    def __init__(self, network_file: str, camera_id: str = "", tensor_injection: bool = False):
         self.device_fd = None
         imx500_device_id = None
         spi_device_id = None
@@ -95,6 +99,10 @@ class IMX500:
             self.fw_progress = open(f"/sys/kernel/debug/imx500-fw:{imx500_device_id}/fw_progress", "r")
         if spi_device_id:
             self.fw_progress_chunk = open(f"/sys/kernel/debug/rp2040-spi:{spi_device_id}/transfer_progress", "r")
+
+        # Enable tensor injection
+        if tensor_injection:
+            self.__enable_injection()
 
         # Upload network firmware
         self.__set_network_firmware(os.path.abspath(network_file))
@@ -243,3 +251,39 @@ class IMX500:
                 raise RuntimeError(f"IMX500: Unable to set network firmware {network_filename}: {err}")
             finally:
                 os.close(fd)
+
+    def __enable_injection(self):
+        ctrl = v4l2_control()
+        ctrl.id = ENABLE_INJECTION_CTRL_ID
+        ctrl.value = 1
+
+        try:
+            fcntl.ioctl(self.device_fd, VIDIOC_S_CTRL, ctrl)
+        except OSError as err:
+            raise RuntimeError(f"IMX500: Unable to enable input tensor injection: {err}")
+
+    def __set_input_tensor(self, input_tensor_fd: int):
+        ctrl = v4l2_control()
+        ctrl.id = INPUT_TENSOR_FD_CTRL_ID
+        ctrl.value = input_tensor_fd
+
+        try:
+            fcntl.ioctl(self.device_fd, VIDIOC_S_CTRL, ctrl)
+        except OSError as err:
+            e = RuntimeError(f"IMX500: Unable to set input tensor fd: {err}")
+            e.errno = err.errno
+            raise e
+
+    def get_injection_cmp_frm(self) -> int:
+        """Get IMX500 Injection Comparison Frame"""
+        ctrl = v4l2_control()
+        ctrl.id = INJECTION_CMP_FRM_CTRL_ID
+        ctrl.value = 0
+
+        try:
+            fcntl.ioctl(self.device_fd, VIDIOC_G_CTRL, ctrl)
+            return ctrl.value
+        except OSError as err:
+            print(f"IMX500: Unable to get injection comparison frame from device driver: {err}")
+
+        return 0

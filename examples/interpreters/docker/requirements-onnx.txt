@@ -1,0 +1,12 @@
+python-multipart
+fastapi==0.95.2  # uses pydantic v1
+uvicorn[standard]
+onnx~=1.17
+onnxruntime~=1.17.0
+onnxruntime-extensions
+torch~=2.4.0
+torchvision
+mct-quantizers
+sony-custom-layers==0.2.0
+edge-mdt-cl==1.0.0
+transformers

@@ -1,6 +1,6 @@
 [project]
 name = "modlib"
-version = "1.3.1"
+version = "1.4.0"
 description = ""
 authors = [{name="Sony Semiconductor Solutions Corp"}]
 readme = "README.md"
@@ -22,6 +22,8 @@ dependencies = [
     "libarchive-c~=5.3",
     "requests~=2.32.5",
     "tqdm~=4.67.1",
+    "pycocotools~=2.0.10",
+    "pillow",
 ]
 
 [dependency-groups]
@@ -64,9 +66,13 @@ exclude = ["modlib/devices/ai_camera/v4l2.py"]
 
 [tool.ruff.lint]
 ignore = ["E722"]
+preview = true
+extend-select = ["W291", "W292", "W293", "W391"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401"]
+"examples/**" = ["E501"]
+"tests/**" = ["E501", "F841", "F401", "F811"]
 
 [tool.pytest.ini_options]
 addopts = "--cov='modlib' --cov-report=term-missing:skip-covered -s"

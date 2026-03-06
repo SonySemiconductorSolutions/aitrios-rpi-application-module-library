@@ -84,7 +84,7 @@ def test_object_counter(test_apps_device):
     with test_apps_device as stream:
         for frame in stream:
             counter.update(frame.detections)
-            
+
             # print(counter.get(0), counter.get(42))
 
             # labels = [f"#{t} {LABELS[c]}: {s:0.2f}" for _, s, c, t in frame.detections]
@@ -98,7 +98,7 @@ def test_object_counter(test_apps_device):
     assert counter.get(38) == 100 # Tennis racket: 1
     assert counter.get(32) == 100 # Sports ball: 1
     assert counter.get(1) == 0 # Something else
-        
+
 
 def test_object_counter_tracker(test_apps_device):
 
@@ -114,7 +114,7 @@ def test_object_counter_tracker(test_apps_device):
     with test_apps_device as stream:
         for frame in stream:
             frame.detections.tracker_id = np.array([1, 2, 3]) # Adding tracklets to the static image: Simulating a tracker.update
-            
+
             counter.update(frame.detections)
 
             # labels = [f"#{t} {LABELS[c]}: {s:0.2f}" for _, s, c, t in frame.detections]

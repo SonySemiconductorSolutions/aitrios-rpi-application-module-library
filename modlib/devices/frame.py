@@ -24,7 +24,6 @@ import numpy as np
 
 from ..models import COLOR_FORMAT, ROI, Anomaly, Classifications, Detections, Poses, Segments, InstanceSegments
 
-
 CV2_WINDOWS = set()
 
 
@@ -72,13 +71,15 @@ class Frame:
     width: int  #: The width of the frame.
     height: int  #: The height of the frame.
     channels: int  #: The number of channels in the frame.
-    detections: Union[Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly]  #: The detections in the frame.
+    detections: Union[
+        Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly
+    ]  #: The detections in the frame.
     new_detection: bool  #: Flag if the provided detections are updated or an old copy.
     fps: float  #: The frames per second of the video stream.
     dps: float  #: The detections per second in the video stream.
     color_format: COLOR_FORMAT  #: The color format of the frame. Defaults to `RGB`.
-    input_tensor: Optional[np.ndarray]  #: The input tensor of the frame. Defaults to None.
     roi: Optional[ROI]  #: Relative ROI of the input tensor. Defaults to None.
+    frame_count: Optional[int]  #: The frame count of the frame. Defaults to None.
 
     def __init__(
         self,
@@ -93,8 +94,8 @@ class Frame:
         fps: float,
         dps: float,
         color_format: COLOR_FORMAT = COLOR_FORMAT.RGB,
-        input_tensor: Optional[np.ndarray] = None,
         roi: Optional[ROI] = None,
+        frame_count: Optional[int] = None,
     ):
         """
         Initialize an Frame object.
@@ -110,8 +111,8 @@ class Frame:
         self.fps = fps
         self.dps = dps
         self.color_format = color_format
-        self._input_tensor = input_tensor
         self.roi = roi
+        self.frame_count = frame_count
 
     @property
     def image(self) -> np.ndarray:
@@ -153,40 +154,15 @@ class Frame:
     def detections(self, value: Union[Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly]):
         self._detections = value
 
-    @property
-    def input_tensor(self) -> np.ndarray:
-        """
-        Get the input tensor of the frame.
-
-        Returns:
-            The input tensor of the frame.
-        """
-        if self._input_tensor is not None:
-            # return self._input_tensor
-            raise NotImplementedError("TODO get the real ISP output (for framework input)")
-        else:
-            raise ValueError(
-                """
-                Input tensor not enabled: `frame.input_tensor` unavailable.
-                Initialize device with `enable_input_tensor=True`
-            """
-            )
-
-    @input_tensor.setter
-    def input_tensor(self, value: np.ndarray):
-        self._input_tensor = value
-
-    def display(
+    def prepare_for_display(
         self,
         show_fps_dps: bool = True,
         cropping: Optional[Union[ROI, Tuple[float, float, float, float]]] = None,
         rotate: Optional[int] = None,
         flip: Optional[int] = None,
-        resize_image: bool = False,
-        window_name: str = "Application",
-    ):
+    ) -> np.ndarray:
         """
-        Display the frame with various options for visualization.
+        Annotate the frame.
 
         Args:
             show_fps_dps: If True, display the frames per second (FPS) and detections per second (DPS) on the image.
@@ -198,19 +174,20 @@ class Frame:
                 > 2 or cv2.ROTATE_90_COUNTERCLOCKWISE: Rotate the image 90 degrees counterclockwise.
                 > None: No rotation.
             flip: The flip code for the image. Use 0 for vertical, 1 for horizontal, -1 for both, or None for no flip.
-            resize_image: If True, resize the image to fit the display window.
-            window_name: Name identifier string of the cv2 window.
+
+        Returns:
+            The annotated image (in cv2 BGR format).
 
         Raises:
             ValueError: If the cropping parameter is not a valid ROI or tuple of 4 floats.
         """
-        # NOTE: Consider splitting the function to return the image and cv2.imshow separately.
 
         H, W = self.image.shape[:2]
-        img = cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR) if self.color_format == "RGB" else self.image
+
+        img = self.image.copy()
 
         # Display ROI
-        if self.roi and self.roi != (0, 0, 1, 1) and self.image_type != IMAGE_TYPE.INPUT_TENSOR:
+        if self.roi and self.roi != (0, 0, 1, 1):
             left, top, width, height = self.roi
             start_point = (int(left * W), int(top * H))
             end_point = (int((left + width) * W), int((top + height) * H))
@@ -269,14 +246,27 @@ class Frame:
                 cv2.LINE_AA,
             )
 
+        return img
+
+    def display_image(self, img: np.ndarray, window_name: str = "Application", resize_window: bool = False):
+        """
+        Display the annotated image with various options for visualization.
+
+        Args:
+            img: The image to display.
+            window_name: Name identifier string of the cv2 window.
+            resize_window: If True, resize display window to the size of the image.
+        """
+        if self.color_format == COLOR_FORMAT.RGB:
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+
         if window_name not in CV2_WINDOWS:
             cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+            if resize_window:  #
+                H, W = self.image.shape[:2]
+                cv2.resizeWindow(window_name, (W, H))
             CV2_WINDOWS.add(window_name)
             cv2.waitKey(100)  # Allow time to create the window
-
-        if resize_image:
-            cv2.resizeWindow(window_name, (W, H))
-            img = cv2.resize(img, (W, H))
 
         cv2.imshow(window_name, img)
 
@@ -285,6 +275,43 @@ class Frame:
             CV2_WINDOWS.clear()
             cv2.destroyAllWindows()
             sys.exit()
+
+    def display(
+        self,
+        show_fps_dps: bool = True,
+        cropping: Optional[Union[ROI, Tuple[float, float, float, float]]] = None,
+        rotate: Optional[int] = None,
+        flip: Optional[int] = None,
+        window_name: str = "Application",
+        resize_window: bool = False,
+    ):
+        """
+        Display the frame with various options for visualization.
+
+        Args:
+            window_name: Name identifier string of the cv2 window.
+            resize_image: If True, resize display window to the size of the annotated image.
+                          Observe, that this might affect the performance of the display,
+                          when image size is large.
+        Returns:
+            The displayed image (in cv2 BGR format).
+
+        Raises:
+            ValueError: If the cropping parameter is not a valid ROI or tuple of 4 floats.
+
+        Note:
+            This is a legacy method, consider using `prepare_for_display` and `display_image` instead,
+            which provides separate methods for preparing the image for display and displaying the image.
+        """
+
+        img = self.prepare_for_display(
+            show_fps_dps=show_fps_dps,
+            cropping=cropping,
+            rotate=rotate,
+            flip=flip,
+        )
+
+        self.display_image(img, window_name, resize_window)
 
     def json(self) -> dict:
         """
@@ -315,6 +342,7 @@ class Frame:
             "dps": self.dps,
             "color_format": self.color_format,
             "roi": self.roi.json() if self.roi else None,
+            "frame_count": self.frame_count,
         }
 
     @classmethod
@@ -362,4 +390,5 @@ class Frame:
             dps=data["dps"],
             color_format=data["color_format"],
             roi=ROI.from_json(data["roi"]) if data.get("roi") else None,
+            frame_count=data.get("frame_count"),
         )

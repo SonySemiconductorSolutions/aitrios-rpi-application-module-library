@@ -43,5 +43,6 @@ Where <ApiLink to="/api-reference/devices/frame#frame">Frame</ApiLink> does cont
 |                                   | ONNX (PyTorch) Models | ✅       | WIP   |
 |                                   | KERAS (Tensorflow) Models | ✅       | WIP   |
 | FPS, DPS, RPS - threaded          |                       | ✅       | ✅    |
-| Model Zoo Compatibility           |                       | ✅       | ❌    |
+| Model Zoo Compatibility           |                       | ✅       | WIP   |
 | Application Modules Compatibility |                       | ✅       | ✅    |
+| Data Injection                    | For on device model evaluation | ✅ | ❌ |

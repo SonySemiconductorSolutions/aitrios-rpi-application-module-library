@@ -32,7 +32,7 @@ class YOLOClassification(Model):
         # [https://ultralytics.com/license]
 
         super().__init__(
-            model_file="/path/to/yolon_imx_model/packerOut.zip",
+            model_file="/path/to/yolo11n-cls_imx_model/packerOut.zip",
             model_type=MODEL_TYPE.CONVERTED,
             color_format=COLOR_FORMAT.RGB,
             preserve_aspect_ratio=True,
@@ -40,7 +40,7 @@ class YOLOClassification(Model):
 
         # Default Ultralytics YOLO classifier models trained on ImageNet with 1000 classes, we provide the labels here:
         # ./modlib/models/zoo/assets
-        self.labels = np.genfromtxt("/path/to/yolon_imx_model/labels.txt", dtype=str, delimiter="\n")
+        self.labels = np.genfromtxt("/path/to/yolo11n-cls_imx_model/labels.txt", dtype=str, delimiter="\n")
 
     def post_process(self, output_tensors):
         return pp_cls(output_tensors)

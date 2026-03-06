@@ -45,7 +45,7 @@ test:
 
 lint:
 	uv run ruff format ./modlib 
-	uv run ruff check --fix ./modlib 
+	uv run ruff check --fix ./modlib ./examples ./tests
 
 build:
 	uv build

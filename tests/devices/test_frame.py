@@ -25,17 +25,17 @@ from modlib.models import COLOR_FORMAT, ROI, Detections
 
 @pytest.fixture
 def sample_frame() -> Frame:
-    
+
     image = np.full((480, 640, 3), 127, dtype=np.uint8)
-    
+
     detections = Detections(
         bbox=np.array([[1, 2, 3, 4]], dtype=np.float32),
         confidence=np.array([0.9], dtype=np.float32),
         class_id=np.array([1], dtype=np.int32),
     )
-    
+
     detections.tracker_id = np.array([5], dtype=np.int32)
-    
+
     return Frame(
         timestamp="2025-01-01T00:00:00Z",
         image=image,
@@ -48,7 +48,6 @@ def sample_frame() -> Frame:
         fps=30.0,
         dps=10.0,
         color_format=COLOR_FORMAT.RGB,
-        input_tensor=None,
         roi=ROI(left=0.1, top=0.2, width=0.3, height=0.4),
     )
 

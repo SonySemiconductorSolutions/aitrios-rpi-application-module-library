@@ -39,9 +39,9 @@ def test_matcher():
             c = detections[detections.class_id == 41]  # Cup
 
             MATCH = matcher.match(p, c)
-            
+
             # # NOTE: Manual check the matcher output
             # print(MATCH)
 
-    
-    assert MATCH == True
+
+    assert MATCH

@@ -42,7 +42,7 @@ def test_annotations(test_apps_device):
 
     tracker = BYTETracker(BYTETrackerArgs())
     annotator = Annotator(color=ColorPalette.default(), thickness=2, text_thickness=1, text_scale=0.5)
-    
+
     test_results = set()
 
     with test_apps_device as stream:
