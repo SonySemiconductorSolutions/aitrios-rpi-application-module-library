@@ -14,5 +14,4 @@
 # limitations under the License.
 #
 
-from .keras_interpreter import KerasInterpreter
-from .onnx_interpreter import ONNXInterpreter
+from .client import InterpreterClient

@@ -23,17 +23,17 @@ from tests.test_devices import test_apps_device
 
 def test_heatmap_set_methods():
 
-    # Initialisation 
+    # Initialisation
     heatmap = Heatmap(cell_size=10)
-    
+
     assert(heatmap.cell_size == 10)
-    assert(heatmap.frame_size == None)  # Default
+    assert(heatmap.frame_size is None)  # Default
 
     # Set different heatmap settings
     HEIGHT = 500
     WIDTH = 500
     CELL_SIZE = 10
-    
+
     heatmap.set_frame_size(WIDTH, HEIGHT)
     heatmap.set_cell_size(CELL_SIZE)
 
@@ -49,8 +49,8 @@ def test_heatmap_live(test_apps_device):
         for frame in stream:
             detections = frame.detections[frame.detections.class_id == 0] # Person
             detections = detections[detections.confidence > 0.50]
-            
+
             heatmap.update(frame, detections)
-            
+
             # NOTE: Manually check the heatmap
             # frame.display()

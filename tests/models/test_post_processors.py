@@ -17,7 +17,7 @@
 import numpy as np
 
 from modlib.models import Classifications, Detections, Poses, Segments
-from modlib.models.post_processors import *
+from modlib.models.post_processors import pp_cls, pp_cls_softmax, pp_higherhrnet, pp_od_bcsn, pp_od_bscn, pp_od_efficientdet_lite0, pp_posenet, pp_personlab, pp_segment, pp_yolov8n_pose, pp_yolo_pose_ultralytics, pp_yolo_segment_ultralytics
 
 
 def test_pp_cls():
@@ -35,13 +35,13 @@ def test_pp_cls_softmax():
     result = pp_cls_softmax(output_tensor)
 
     assert isinstance(result, Classifications)
-    
+
     assert np.allclose(result.confidence, np.array([0.4, 0.3, 0.2, 0.1]), atol=1e-4)
     assert np.array_equal(result.class_id, np.array([1, 2, 3, 0]))
 
 
 def test_pp_od_bcsn():
-    
+
     output_tensors = [
         np.array([[0.0, 0.1, 0.2, 0.3], [0.4, 0.5, 0.6, 0.7]]), # Box coordinates
         np.array([1, 2]),       # Class IDs for 2 detections
@@ -58,14 +58,14 @@ def test_pp_od_bcsn():
 
 
 def test_pp_od_bscn():
-    
+
     output_tensors = [
         np.array([[0.0, 0.1, 0.2, 0.3], [0.4, 0.5, 0.6, 0.7]]), # Box coordinates
         np.array([0.9, 0.8]),   # Scores for 2 detections
         np.array([1, 2]),       # Class IDs for 2 detections
         np.array([2])           # Number of detections
     ]
-   
+
     result = pp_od_bscn(output_tensors)
 
     assert isinstance(result, Detections)
@@ -82,7 +82,7 @@ def test_pp_od_efficientdet_lite0():
         np.array([1, 2]),       # Class IDs for 2 detections
         np.array([2])           # Number of detections
     ]
-   
+
     result = pp_od_efficientdet_lite0(output_tensors)
 
     assert isinstance(result, Detections)

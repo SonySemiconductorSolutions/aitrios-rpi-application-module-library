@@ -87,7 +87,7 @@ class Color:
     r: int  #: Red channel.
     g: int  #: Green channel.
     b: int  #: Blue channel.
-    
+
     def __init__(self, r: int, g: int, b: int):
         """
         Initialize a color in RGB format. Used for specifying colors in annotations.
@@ -290,10 +290,10 @@ class Annotator:
 
     def __init__(
         self,
-        color: Union[Color, ColorPalette] = ColorPalette.default(), 
+        color: Union[Color, ColorPalette] = ColorPalette.default(),
         thickness: int = 2,
         text_scale: float = 0.5,
-        text_thickness: int = 1, 
+        text_thickness: int = 1,
         text_padding: int = 10,
     ):
         self.color: Union[Color, ColorPalette] = color
@@ -343,22 +343,12 @@ class Annotator:
                 "Input `detections` should be of type Detections, Poses, or InstanceSegments that contain bboxes"
             )
 
-        # NOTE: Compensating for any introduced modified region of interest (ROI)
-        # to ensure that detections are displayed correctly on top of the current `frame.image`.
-        if frame.image_type != IMAGE_TYPE.INPUT_TENSOR:
-            detections.compensate_for_roi(frame.roi)
+        # scale ALL bboxes at once to frame size and account for ROI if needed
+        detections = scale_bboxes(detections, frame.image.shape, frame.image_type, frame.roi)
 
         h, w, _ = frame.image.shape
         for i in range(len(detections)):
             x1, y1, x2, y2 = detections.bbox[i]
-
-            # Rescaling to frame size
-            x1, y1, x2, y2 = (
-                int(x1 * w),
-                int(y1 * h),
-                int(x2 * w),
-                int(y2 * h),
-            )
 
             if isinstance(detections, Detections) or isinstance(detections, InstanceSegments):
                 class_id = detections.class_id[i] if detections.class_id is not None else None
@@ -584,7 +574,7 @@ class Annotator:
 
     def annotate_segments(self, frame: Frame, segments: Segments) -> np.ndarray:
         """
-        Draws segmentation areas on the frame using the provided segments. 
+        Draws segmentation areas on the frame using the provided segments.
 
         Args:
             frame: The frame to annotate, must be of type `Frame` from `modlib.devices`.
@@ -814,3 +804,45 @@ class Annotator:
             ```
         """
         return image[y1:y2, x1:x2]
+
+
+def scale_bboxes(
+    detections: Detections,
+    image_shape: Tuple[int, int, int],
+    image_type: IMAGE_TYPE,
+    roi: Tuple[float, float, float, float],
+) -> Detections:
+    """
+    Scale multiple bounding boxes from normalized coordinates to image frame size and return updated detections.
+    If the input image is not an INPUT_TENSOR, compensates for any Region of Interest (ROI) applied during pre-processing,
+    so that bounding boxes are correctly mapped back to the current frame.
+    Typically, this happens for models that preserve aspect ratio.
+
+    Args:
+        detections: Detections object with bounding boxes in normalized coordinates.
+        image_shape: Tuple (height, width, _) representing the image shape.
+        image_type: IMAGE_TYPE enum specifying the input image type.
+        roi: ROI tuple specifying the region of interest (x, y, w, h).
+
+    Returns:
+        Detections object with bounding boxes scaled to frame pixel coordinates.
+    """
+
+    # Copy detections so as not to mutate the input
+    dets = detections.copy()
+
+    # Take into account any ROI, also handles preserve aspect ratio in pre-processing
+    # as implemented by IMX500 ISP (crops and resized image to input tensor size).
+    h, w, _ = image_shape
+    if image_type != IMAGE_TYPE.INPUT_TENSOR:
+        # image_ratio = w / h
+        dets.compensate_for_roi(roi)
+
+    # Scale bboxes to frame size
+    scaled_bboxes = np.zeros_like(dets.bbox, dtype=int)
+    scaled_bboxes[:, 0] = (dets.bbox[:, 0] * w).astype(int)
+    scaled_bboxes[:, 1] = (dets.bbox[:, 1] * h).astype(int)
+    scaled_bboxes[:, 2] = (dets.bbox[:, 2] * w).astype(int)
+    scaled_bboxes[:, 3] = (dets.bbox[:, 3] * h).astype(int)
+    dets.bbox = scaled_bboxes
+    return dets

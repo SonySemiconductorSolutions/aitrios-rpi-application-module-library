@@ -293,8 +293,8 @@ class Detections(Result):
         new_instance.bbox = np.copy(self.bbox)
         new_instance.confidence = np.copy(self.confidence)
         new_instance.class_id = np.copy(self.class_id)
-        new_instance.tracker_id = np.copy(self.tracker_id)
-        new_instance._roi_compensated = copy.deepcopy(self._roi_compensated)
+        new_instance.tracker_id = np.copy(self.tracker_id) if self.tracker_id is not None else None
+        new_instance._roi_compensated = copy.copy(self._roi_compensated)
         return new_instance
 
     def copy(self) -> "Detections":
@@ -518,7 +518,7 @@ class Poses(Result):
 
     def __iter__(self) -> Iterator[Tuple[np.ndarray, float, np.ndarray, int]]:
         """
-        To iterate over the detections. 
+        To iterate over the detections.
         """
         for i in range(len(self)):
             yield (
@@ -526,7 +526,7 @@ class Poses(Result):
                 self.confidence[i],
                 self.keypoint_scores[i],
                 self.bbox[i],
-                self.tracker_id[i],
+                self.tracker_id[i] if self.tracker_id is not None else None,
             )
 
     def __getitem__(self, index: Union[int, slice, List[int], np.ndarray]) -> "Poses":
@@ -579,13 +579,14 @@ class Poses(Result):
         Returns a copy of the current detections.
         """
         new_instance = Poses()
+        new_instance.n_detections = self.n_detections
         new_instance.confidence = np.copy(self.confidence)
         new_instance.keypoints = np.copy(self.keypoints)
         new_instance.keypoint_scores = np.copy(self.keypoint_scores)
-        new_instance.tracker_id = np.copy(self.tracker_id)
+        new_instance.tracker_id = np.copy(self.tracker_id) if self.tracker_id is not None else None
         if self._bbox is not None:
             new_instance._bbox = np.copy(self._bbox)
-        new_instance._roi_compensated = copy.deepcopy(self._roi_compensated)
+        new_instance._roi_compensated = copy.copy(self._roi_compensated)
         return new_instance
 
     def copy(self) -> "Poses":
@@ -651,7 +652,7 @@ class Segments(Result):
     Data class for segmentation results.
     """
 
-    mask: np.ndarray  #: 2D Mask arrays containing the id for each identified segment in the input tensor.
+    mask: np.ndarray  #: 2D Mask arrays containing the id for each identified segment in the input tensor. Mask background pixels are represented by -1 (/255) for the uint8 array.
 
     def __init__(self, mask: np.ndarray = np.empty((0,))):
         self.mask = mask.astype(np.uint8)
@@ -669,9 +670,20 @@ class Segments(Result):
 
         if self.mask.size > 0:
             h, w = self.mask.shape
-            start_h, start_w = int(roi[1] * h / roi[3]), int(roi[0] * w / roi[2])
-            new_masks = np.zeros((int(h / roi[3]), int(w / roi[2])), dtype=self.mask.dtype)
-            new_masks[start_h : start_h + h, start_w : start_w + w] = self.mask
+            out_h, out_w = int(h / roi[3]), int(w / roi[2])
+            h_start, w_start = int(roi[1] * h / roi[3]), int(roi[0] * w / roi[2])
+
+            # starting offsets for resulting and input masks
+            start_h, start_w = max(0, -h_start), max(0, -w_start)
+            out_start_h, out_start_w = max(0, h_start), max(0, w_start)
+            delta_h = min(h - start_h, out_h - out_start_h)
+            delta_w = min(w - start_w, out_w - out_start_w)
+
+            # create compensated output mask
+            new_masks = np.zeros((out_h, out_w), dtype=self.mask.dtype)
+            new_masks[out_start_h : out_start_h + delta_h, out_start_w : out_start_w + delta_w] = self.mask[
+                start_h : start_h + delta_h, start_w : start_w + delta_w
+            ]
             self.mask = new_masks
 
         self._roi_compensated = True
@@ -686,10 +698,10 @@ class Segments(Result):
     @property
     def indices(self) -> List[int]:
         """
-        Found indices in the mask and ignore the background (id: 0).
+        Found indices in the mask and ignore the background (id: 255).
         """
         found_indices = np.unique(self.mask)
-        return found_indices[found_indices != 0]
+        return found_indices[found_indices != 255]
 
     def get_mask(self, id: int) -> np.ndarray:
         """
@@ -721,7 +733,7 @@ class Segments(Result):
         """
         new_instance = Segments()
         new_instance.mask = np.copy(self.mask)
-        new_instance._roi_compensated = copy.deepcopy(self._roi_compensated)
+        new_instance._roi_compensated = copy.copy(self._roi_compensated)
         return new_instance
 
     def copy(self) -> "Segments":
@@ -738,7 +750,7 @@ class Segments(Result):
             A dictionary representation of the Segments object with the following keys:
             - "n_segments" (int): Number of detected segments.
             - "indices" (list): List of the index corresponding to each segment.
-            - "mask" (str): Mask array for each segment (compressed and base64 encoded).
+            - "mask" (str): Mask array for each segment (uint8 byte-array, compressed and base64 encoded).
             - "mask_shape" (tuple): The shape of the mask.
             - "_roi_compensated" (bool): Whether the ROI has been compensated for.
         """
@@ -876,9 +888,20 @@ class InstanceSegments(Result):
         # initialize as background values and place mask(s) at ROI offset
         if self.mask.size > 0:
             n, h, w = self.mask.shape
-            start_h, start_w = int(roi[1] * h / roi[3]), int(roi[0] * w / roi[2])
-            new_masks = np.zeros((n, int(h / roi[3]), int(w / roi[2])), dtype=self.mask.dtype)
-            new_masks[:, start_h : start_h + h, start_w : start_w + w] = self.mask
+            out_h, out_w = int(h / roi[3]), int(w / roi[2])
+            h_start, w_start = int(roi[1] * h / roi[3]), int(roi[0] * w / roi[2])
+
+            # starting offsets for resulting and input masks
+            start_h, start_w = max(0, -h_start), max(0, -w_start)
+            out_start_h, out_start_w = max(0, h_start), max(0, w_start)
+            delta_h = min(h - start_h, out_h - out_start_h)
+            delta_w = min(w - start_w, out_w - out_start_w)
+
+            # create compensated output mask
+            new_masks = np.zeros((n, out_h, out_w), dtype=self.mask.dtype)
+            new_masks[:, out_start_h : out_start_h + delta_h, out_start_w : out_start_w + delta_w] = self.mask[
+                :, start_h : start_h + delta_h, start_w : start_w + delta_w
+            ]
             self.mask = new_masks
 
         if self._bbox is not None:
@@ -1009,8 +1032,8 @@ class InstanceSegments(Result):
         new_instance.bbox = np.copy(self.bbox)
         new_instance.confidence = np.copy(self.confidence)
         new_instance.class_id = np.copy(self.class_id)
-        new_instance.tracker_id = np.copy(self.tracker_id)
-        new_instance._roi_compensated = copy.deepcopy(self._roi_compensated)
+        new_instance.tracker_id = np.copy(self.tracker_id) if self.tracker_id is not None else None
+        new_instance._roi_compensated = copy.copy(self._roi_compensated)
         return new_instance
 
     def copy(self):
@@ -1101,6 +1124,35 @@ class InstanceSegments(Result):
             instance.tracker_id = tracker_id
         instance._roi_compensated = data["_roi_compensated"]
         return instance
+
+    def to_segments(self) -> "Segments":
+        """
+        Convert instance segmentation masks to a simple 2D semantic segmentation mask.
+        If label_mapping is provided, map the class_ids to the new labels.
+        For each pixel, selects the instance with maximum confidence among all instances
+        covering that pixel, and assigns that instance's class_id to the output mask.
+
+        Returns:
+            A Segments object with a 2D mask containing class_ids for each pixel.
+        """
+        # Handle empty masks
+        if len(self.mask) == 0:
+            return Segments(mask=np.empty((0,)))
+
+        # Create weighted mask: multiply each instance mask by its confidence.
+        # And find the instance index with maximum confidence at each pixel.
+        weighted = self.mask.astype(np.float32) * self.confidence[:, None, None]  # (n_instances, height, width)
+        best_instance_idx = np.argmax(weighted, axis=0)  # (height, width)
+
+        # Create a mask indicating which pixels are covered by any instance.
+        # And map instance indices to class_ids, set background pixels to -1 (/255) for the uint8 array.
+        any_mask = np.any(self.mask > 0, axis=0)
+        output_mask = np.where(any_mask, self.class_id[best_instance_idx], -1).astype(np.uint8)
+
+        # Create Segments object and preserve ROI compensation state
+        segments = Segments(mask=output_mask)
+        segments._roi_compensated = self._roi_compensated
+        return segments
 
 
 class Anomaly(Result):

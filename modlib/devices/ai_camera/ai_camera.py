@@ -18,6 +18,7 @@ import atexit
 import ctypes
 import logging
 import os
+import io
 import selectors
 import threading
 import time
@@ -27,7 +28,18 @@ from typing import Optional, Tuple, Union
 
 import numpy as np
 
-from modlib.models import COLOR_FORMAT, MODEL_TYPE, Model
+import modlib.devices.imx500.isp as isp
+from modlib.models import (
+    COLOR_FORMAT,
+    MODEL_TYPE,
+    Model,
+    Classifications,
+    Detections,
+    Poses,
+    Segments,
+    InstanceSegments,
+    Anomaly,
+)
 from modlib.models.zoo import InputTensorOnly
 
 from ..device import Device, Rate
@@ -38,6 +50,7 @@ from .camera_manager import CameraManager
 from .imx500 import IMX500
 from .libcamera_config import LibcameraConfig
 from .rpk_packager import RPKPackager
+from .utils import setup_libcamera_config_file
 
 # Global Libcamera Manager
 CM = CameraManager()
@@ -60,16 +73,9 @@ class _OutputTensorInfo(ctypes.LittleEndianStructure):
         ("size", ctypes.c_uint16 * MAX_NUM_DIMENSIONS),
     ]
 
-# NOTE: Compatible with libcamera 0.5.0 on Raspberry Pi OS: Bookworm
-class _CnnOutputTensorInfoExported(ctypes.LittleEndianStructure):
-    _fields_ = [
-        ("network_name", ctypes.c_char * NETWORK_NAME_LEN),
-        ("num_tensors", ctypes.c_uint32),
-        ("info", _OutputTensorInfo * MAX_NUM_TENSORS),
-    ]
 
-# NOTE: Compatible with libcamera 0.6.0 on Raspberry Pi OS: Trixie
-class _CnnOutputTensorInfoExported2(ctypes.LittleEndianStructure):
+# NOTE: Compatible with libcamera 0.6.0 (on Raspberry Pi OS: Trixie)
+class _CnnOutputTensorInfoExported(ctypes.LittleEndianStructure):
     _fields_ = [
         ("network_name", ctypes.c_char * NETWORK_NAME_LEN),
         ("num_tensors", ctypes.c_uint32),
@@ -108,6 +114,7 @@ class AiCamera(Device):
         frame_rate: Optional[int] = 30,
         image_size: Tuple[int, int] = (640, 480),
         num: Optional[int] = 0,
+        data_injection: Optional[bool] = False,
     ):
         """
         Initialize the AiCamera device.
@@ -119,6 +126,7 @@ class AiCamera(Device):
             frame_rate: The frames per second applied to the libcamera configuration.
             image_size: Resolution of the frame.image. Defaults to (640, 480) which has the original aspect ratio.
             num: The camera number to select which camera to use, when more then one AiCamera connected to libcamera.
+            data_injection: Enable data injection mode.
         """
         self.config = None
         self.imx500 = None
@@ -127,6 +135,15 @@ class AiCamera(Device):
         self.roi_hires = None  # ROI high resolution image
         self.scaler_crop = None
         self.allocator = Allocator()
+        self.data_injection = data_injection
+
+        # Setup libcamera config file before importing libcamera
+        if data_injection:
+            # When data injection is enabled increase the camera timeout to 5 seconds (from default 1 second)
+            # This increases the a watchdog timeout value in libcamera to prevent the camera from timing out with message:
+            # WARN V4L2 v4l2_videodevice.cpp:2102 /dev/video4[13:cap]: Dequeue timer of 1000000.00us has expired!
+            # ERROR RPI pipeline_base.cpp:1346 Camera frontend has timed out!
+            setup_libcamera_config_file(camera_timeout_value_ms=5000)
 
         # Get the real libcamera internal number (First one listed)
         if len(CM.global_cameras) > 0:
@@ -224,6 +241,8 @@ class AiCamera(Device):
 
     def _update_input_tensor_image(self, req):
         input_tensor = req.metadata.get("CnnInputTensor")
+        if not input_tensor and self.data_injection:
+            return
         if not input_tensor:
             raise ValueError(
                 """
@@ -232,31 +251,24 @@ class AiCamera(Device):
             """
             )
 
-        w, h = self.model.input_tensor_size
-        r1 = np.array(input_tensor, dtype=np.uint8).astype(np.int32).reshape((3,) + (h, w))[(2, 1, 0), :, :]
-        norm_val = self.model.info["input_tensor"]["norm_val"]
-        norm_shift = self.model.info["input_tensor"]["norm_shift"]
-        div_val = self.model.info["input_tensor"]["div_val"]
-        div_shift = self.model.info["input_tensor"]["div_shift"]
-        for i in [0, 1, 2]:
-            r1[i] = ((((r1[i] << norm_shift[i]) - norm_val[i]) << div_shift) // div_val[i]) & 0xFF
-
-        self.input_tensor_image = np.transpose(r1, (1, 2, 0)).astype(np.uint8).copy()
+        self.input_tensor_image = isp.isp_denormalize_input_tensor(input_tensor, self.model)
 
     def _parse_request(self, req):
         # 1. capture-metadata
         output_tensor = req.metadata.get("CnnOutputTensor")
         detections = None
+        frame_count = None
         new_detection = False
 
         if isinstance(self.model, InputTensorOnly):
             pass
         elif output_tensor:
             np_output = np.fromiter(output_tensor, dtype=np.float32)
+            output_tensor_info = self._parse_output_tensor_info(req)
 
             offset = 0
             outputs = []
-            for tensor_shape in self._get_output_tensor_shape(req):
+            for tensor_shape in self._get_output_tensor_shape(output_tensor_info):
                 size = np.prod(tensor_shape)
                 outputs.append(np_output[offset : offset + size].reshape(tensor_shape, order="F"))
                 offset += size
@@ -265,7 +277,9 @@ class AiCamera(Device):
             detections = self.model.post_process(outputs)
 
             new_detection = True
+            frame_count = output_tensor_info.frameCount
             self.last_detections = detections
+            self.last_frame_count = frame_count
             self.dps.update()
 
         elif self.last_detections is None:
@@ -274,23 +288,34 @@ class AiCamera(Device):
             return
         else:
             detections = self.last_detections
+            frame_count = self.last_frame_count
 
         # 2. get VGA or input tensor image
-        if self.enable_input_tensor:
+        if self.data_injection:
+            image = None
+            color_format = None
+            image_type = None
+            h, w, c = None, None, None
+        elif self.enable_input_tensor:
             # only update input tensor when available
             if new_detection:
                 self._update_input_tensor_image(req)
             image = self.input_tensor_image
+            color_format = self.model.color_format
+            image_type = IMAGE_TYPE.INPUT_TENSOR
+            h, w, c = image.shape
         else:
             image = req.image
-        h, w, c = image.shape
+            color_format = COLOR_FORMAT.BGR  # VGA image always in BGR format
+            image_type = IMAGE_TYPE.VGA
+            h, w, c = image.shape
 
         with self._frameslock:
             self._frames.append(
                 Frame(
                     timestamp=datetime.now().isoformat(),
                     image=image,
-                    image_type=IMAGE_TYPE.VGA if not self.enable_input_tensor else IMAGE_TYPE.INPUT_TENSOR,
+                    image_type=image_type,
                     width=w,
                     height=h,
                     channels=c,
@@ -298,9 +323,9 @@ class AiCamera(Device):
                     new_detection=new_detection,
                     fps=self.fps.value,
                     dps=self.dps.value,
-                    color_format=COLOR_FORMAT.BGR,  # Both VGA image as input_tensor_image always in BGR format
-                    input_tensor=None,
+                    color_format=color_format,
                     roi=self.roi,
+                    frame_count=frame_count,
                 )
             )
 
@@ -325,7 +350,7 @@ class AiCamera(Device):
 
                 self.set_input_tensor_cropping((x, y, w, h))
 
-                logger.warn(
+                logger.warning(
                     f"\033[93mInput tensor cropping settings have been adjusted to preserve aspect ratio of the "
                     f"input tensor (model requirement): ROI({x:g}, {y:g}, {w:g}, {h:g})\033[0m"
                 )
@@ -350,7 +375,7 @@ class AiCamera(Device):
                     Please adjust the input tensor cropping settings to fit inside the high resolution image.
                 """)
 
-            logger.warn(
+            logger.warning(
                 f"\033[93mInput tensor cropping settings have been adjusted to fit inside the high resolution image: "
                 f"ROI({x0:g}, {y0:g}, {w0:g}, {h0:g}) -> "
                 f"ROI({x2:g}, {y2:g}, {w2:g}, {h2:g})\033[0m"
@@ -383,7 +408,7 @@ class AiCamera(Device):
         self._proc_started.clear()
         self._proc_abort.clear()
         self._proc_thread = threading.Thread(target=self._process_requests_func)
-        self._proc_thread.setDaemon(True)
+        self._proc_thread.daemon = True
         self._proc_thread.start()
         self._proc_started.wait()
 
@@ -394,15 +419,20 @@ class AiCamera(Device):
         self.dps.init()
 
         # Warn when difference between DPS and RPS is large
-        self._monitor_abort.clear()
-        self._monitor_rate_thread = threading.Thread(target=self._monitor_dps_performance)
-        self._monitor_rate_thread.setDaemon(True)
-        self._monitor_rate_thread.start()
+        if not self.data_injection:
+            self._monitor_abort.clear()
+            self._monitor_rate_thread = threading.Thread(target=self._monitor_dps_performance)
+            self._monitor_rate_thread.daemon = True
+            self._monitor_rate_thread.start()
 
         for request in self._make_requests():
             self.camera.queue_request(request)
 
         logger.info("Camera Started !")
+
+        # Wait for model firmware to be uploaded
+        if self.imx500.p is not None:
+            self.imx500.p.join()
 
     def _make_requests(self):
         num_requests = min([len(self.allocator.buffers(stream)) for stream in self.config.streams])
@@ -655,7 +685,9 @@ class AiCamera(Device):
         # configure model deployment
         self.model = model
         self.model._get_network_info(Path(network_file))
-        self.imx500 = IMX500(os.path.abspath(network_file), camera_id=self.camera_id)
+        self.imx500 = IMX500(
+            os.path.abspath(network_file), camera_id=self.camera_id, tensor_injection=self.data_injection
+        )
         self.imx500.show_network_fw_progress_bar()
 
     def get_device_id(self) -> str | None:
@@ -667,25 +699,100 @@ class AiCamera(Device):
         """
         return self.imx500.get_device_id()
 
+    def inject_input_tensor(self, tensor_data: np.ndarray):
+        try:
+            memfd = os.memfd_create("tensor_data", os.MFD_CLOEXEC)
+        except OSError as e:
+            logger.error(f"Failed to create memfd: {e}")
+            return None
+
+        try:
+            with io.FileIO(memfd, "wb", closefd=False) as file_obj:
+                with io.BufferedWriter(file_obj) as writer:
+                    writer.write(tensor_data)
+                    writer.flush()
+
+            self.imx500._IMX500__set_input_tensor(memfd)
+            return self.imx500.get_injection_cmp_frm()
+        except Exception as e:
+            logger.error(f"Error setting tensor: {e}")
+            raise e
+        finally:
+            try:
+                os.close(memfd)
+            except OSError:
+                pass
+
+    def inject(
+        self, dsp_input_tensor, max_retries=100
+    ) -> Union[Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly]:
+        if max_retries <= 0:
+            raise Exception("Max retries exceeded while trying to inject and find frame")
+
+        # Inject input tensor
+        try:
+            # Clear any pending frames before injecting
+            with self._frameslock:
+                self._frames.clear()
+            cmp_frm = self.inject_input_tensor(dsp_input_tensor.tobytes())
+            logger.info(f"Injection comparison frame: {cmp_frm}")
+        except RuntimeError as e:
+            if e.errno == 121:
+                # IMX500: Unable to set input tensor fd: [Errno 121] Remote I/O error
+                logger.warning(f"Retrying... ({max_retries} retries left)")
+                return self.inject(dsp_input_tensor, max_retries - 1)
+            else:
+                raise e
+
+        res_frame = None
+
+        while True:
+            with self._frameslock:
+                while not self._frames:
+                    self._frame_ready.wait()
+
+                for frame in self._frames:
+                    # Check if the frame count matches the comparison frame
+                    diff = (frame.frame_count - cmp_frm) & 0xFF
+                    logger.info(f"frame.frame_count: {frame.frame_count}, cmp_frm: {cmp_frm}, diff: {diff}")
+                    if diff > (0xFF // 2):
+                        diff -= 0xFF + 1
+                    if diff == 0:
+                        res_frame = frame
+                        break
+                    elif diff > 0:
+                        logger.warning(f"Missed injected frame (diff={diff}), retrying... ({max_retries} retries left)")
+                        res_frame = -1  # missed injected frame
+                        break
+
+                self._frames.clear()
+                if res_frame is not None:
+                    break
+
+        # Release lock before recursive call
+        if res_frame == -1:
+            # Missed injected frame, retry
+            return self.inject(dsp_input_tensor, max_retries - 1)
+        else:
+            return res_frame.detections
+
     @staticmethod
-    def _get_output_tensor_shape(req):
-        # TODO: can be removed when output tensor shape available in model
+    def _parse_output_tensor_info(req):
         output_tensor_info = req.metadata.get("CnnOutputTensorInfo")
         if not output_tensor_info:
             return []
 
         if type(output_tensor_info) not in [bytes, bytearray]:
             output_tensor_info = bytes(output_tensor_info)
-        
-        # NOTE: Compatible with both libcamera 0.5.0 and 0.6.0
-        if len(output_tensor_info) == ctypes.sizeof(_CnnOutputTensorInfoExported):
-            parsed = _CnnOutputTensorInfoExported.from_buffer_copy(output_tensor_info)
-        elif len(output_tensor_info) == ctypes.sizeof(_CnnOutputTensorInfoExported2):
-            parsed = _CnnOutputTensorInfoExported2.from_buffer_copy(output_tensor_info)
-        else:
+        if len(output_tensor_info) != ctypes.sizeof(_CnnOutputTensorInfoExported):
             raise ValueError(f"tensor info length {len(output_tensor_info)} does not match expected size")
-        
-        return [list(t.size)[: t.num_dimensions] for t in parsed.info[: parsed.num_tensors]]
+
+        return _CnnOutputTensorInfoExported.from_buffer_copy(output_tensor_info)
+
+    @staticmethod
+    def _get_output_tensor_shape(parsed_info):
+        # TODO: can be removed when output tensor shape available in model
+        return [list(t.size)[: t.num_dimensions] for t in parsed_info.info[: parsed_info.num_tensors]]
 
     def __enter__(self):
         """

@@ -16,11 +16,15 @@
 
 import os
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Callable, Iterator, Optional
 
 import cv2
 import numpy as np
+
+from modlib.models import COLOR_FORMAT
 
 
 class Source(ABC):
@@ -42,7 +46,7 @@ class Source(ABC):
         Returns:
             The next frame as an image array or None if no more frames are available.
         """
-        pass
+        ...
 
     @abstractmethod
     def timestamp(self) -> datetime:
@@ -52,7 +56,41 @@ class Source(ABC):
         Returns:
             The datetime of the frame.
         """
-        pass
+        ...
+
+    @abstractmethod
+    def __len__(self) -> int:
+        """
+        Abstract method to retrieve the number of frames/images in the source.
+
+        Returns:
+            The number of frames/images in the source.
+        """
+        ...
+
+    def __iter__(self):
+        """
+        Make the Source iterable.
+
+        Returns:
+            The source itself, which can be iterated over.
+        """
+        return self
+
+    def __next__(self) -> np.ndarray:
+        """
+        Get the next frame from the source.
+
+        Returns:
+            The next frame as an image array.
+
+        Raises:
+            StopIteration: When no more frames are available.
+        """
+        frame = self.get_frame()
+        if frame is None:
+            raise StopIteration
+        return frame
 
 
 class Images(Source):
@@ -90,14 +128,11 @@ class Images(Source):
             list(images_dir.glob("*.jpg")) + list(images_dir.glob("*.jpeg")) + list(images_dir.glob("*.png"))
         )
 
-        if not self.image_files:
-            raise FileNotFoundError(f"\nNo image files found in the directory {images_dir}.\n")
-
         self.image_number = 0
         self.width = None
         self.height = None
         self.channels = None
-        self.color_format = "BGR"
+        self.color_format = COLOR_FORMAT.BGR
 
     def get_frame(self) -> np.ndarray | None:
         """
@@ -109,12 +144,16 @@ class Images(Source):
         if self.image_number >= len(self.image_files):
             return None
 
+        # NOTE: always BGR
         image = cv2.imread(str(self.image_files[self.image_number]))
 
         self.height, self.width, self.channels = image.shape
         self.image_number += 1
 
         return image
+
+    def __len__(self) -> int:
+        return len(self.image_files)
 
     @property
     def timestamp(self):
@@ -161,7 +200,7 @@ class Video(Source):
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.frame_number = 0
         self.channels = 3
-        self.color_format = "BGR"
+        self.color_format = COLOR_FORMAT.BGR
 
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
         self.start_time = datetime.now()
@@ -178,6 +217,9 @@ class Video(Source):
         self.frame_number += 1
         return image
 
+    def __len__(self) -> int:
+        return self.total_frames
+
     @property
     def timestamp(self):
         """
@@ -189,3 +231,118 @@ class Video(Source):
             The datetime of the frame.
         """
         return self.start_time + timedelta(seconds=self.frame_number / self.fps)
+
+
+@dataclass
+class DatasetSample:
+    """
+    Container for dataset sample metadata and image content.
+    """
+
+    image_path: Path  #: Path to the image.
+    image_name: str  #: Name of the image.
+    image_id: Optional[int | str]  #: Image ID. Supports both int (COCO) and str (VOC).
+    image: np.ndarray  #: The sample image.
+    image_color_format: COLOR_FORMAT  #: Color format of the sample image.
+
+
+class Dataset(Source):
+    """
+    Source that walks a directory tree and yields dataset samples.
+    Useful for evaluation pipelines that need specific image ids from file names or folder structures.
+    """
+
+    def __init__(
+        self,
+        images_dir: Path,
+        dataset_id_function: Optional[Callable] = None,
+    ):
+        """
+        Build a dataset source.
+
+        Args:
+            images_dir: Root directory scanned recursively for images.
+            dataset_id_function: Optional callable mapping a Path to an image id; defaults to the file stem.
+
+        Raises:
+            FileNotFoundError: If the directory does not exist.
+        """
+        self.images_dir = Path(images_dir)
+        if not self.images_dir.exists():
+            raise FileNotFoundError(f"\nThe directory {self.images_dir} does not exist.\n")
+        self.dataset_id_function = dataset_id_function
+
+        # Get all image files in the directory and its subdirectories (recursive)
+        # Classification uses folder-based structure (class_id/image.jpg)
+        # Detection/segmentation may use flat structure
+        self.image_files = []
+        for ext in {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}:
+            self.image_files += list(self.images_dir.rglob(f"*{ext}"))
+        self.image_files = sorted(self.image_files)
+
+        self.image_number = 0
+        self.width = None
+        self.height = None
+        self.channels = None
+        self.color_format = COLOR_FORMAT.BGR  # Color format returned by get_frame()
+
+    def get_frame(self) -> np.ndarray | None:
+        """
+        Load the next image from the dataset.
+
+        Returns:
+            Image array in BGR format, or None when all images are consumed.
+        """
+        if self.image_number >= len(self.image_files):
+            return None
+
+        image = cv2.imread(str(self.image_files[self.image_number]))  # NOTE: always BGR
+        self.height, self.width, self.channels = image.shape
+        self.image_number += 1
+
+        return image
+
+    def get_image_id(self, img_path: Path) -> int | str:
+        """
+        Resolve the image id for a given path.
+
+        Args:
+            img_path: Path to the image file.
+
+        Returns:
+            Id from `dataset_id_function` or the file stem (cast to int when numeric).
+        """
+        if self.dataset_id_function is None:
+            return int(img_path.stem) if img_path.stem.isdigit() else img_path.stem
+        return self.dataset_id_function(img_path)
+
+    def __iter__(self) -> Iterator[DatasetSample]:
+        """
+        Iterate over dataset samples.
+
+        Yields:
+            DatasetSample with path, name, id, and image in RGB format.
+        """
+        for img_path in self.image_files:
+            img_bgr = cv2.imread(str(img_path))
+            if img_bgr is None:
+                continue  # skip corrupted/not found images
+            yield DatasetSample(
+                image_path=img_path,
+                image_name=img_path.name,
+                image_id=self.get_image_id(img_path),
+                image=cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB),
+                image_color_format=COLOR_FORMAT.RGB,
+            )
+
+    def __len__(self) -> int:
+        """Number of images discovered in the dataset."""
+        return len(self.image_files)
+
+    @property
+    def timestamp(self):
+        """
+        Returns:
+            Current datetime.
+        """
+        return datetime.now()

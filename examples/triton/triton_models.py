@@ -44,8 +44,10 @@ class TritonClassifier(Model):
         # Extra triton requirements
         self.network_file_path = "./examples/assets/triton/classifier/network.fpk"
         self.info_file_path = "./examples/assets/triton/classifier/fpk_info.dat"
-        self.input_tensor_shape = (224, 224, 3)
-        self.output_tensor_shape_list = [(1000,)]
+        self.info = {
+            "input_tensor": {"width": 224, "height": 224},
+            "output_tensor_sizes": [(1000,)],
+        }
 
     def pre_process(self, image: np.ndarray) -> np.ndarray:
         raise NotImplementedError("Pre-processing not implemented for this model.")
@@ -68,8 +70,10 @@ class TritonDetector(Model):
         # Extra triton requirements
         self.network_file_path = "./examples/assets/triton/detector/network.fpk"
         self.info_file_path = "./examples/assets/triton/detector/fpk_info.dat"
-        self.input_tensor_shape = (300, 300, 3)
-        self.output_tensor_shape_list = [(10, 4), (10,), (10,), (1,)]
+        self.info = {
+            "input_tensor": {"width": 300, "height": 300},
+            "output_tensor_sizes": [(10, 4), (10,), (10,), (1,)],
+        }
 
     def pre_process(self, image: np.ndarray) -> np.ndarray:
         raise NotImplementedError("Pre-processing not implemented for this model.")
@@ -92,8 +96,10 @@ class TritonAnomaly(Model):
         # Extra triton requirements
         self.network_file_path = "./examples/assets/triton/anomaly/network.fpk"
         self.info_file_path = "./examples/assets/triton/anomaly/fpk_info.dat"
-        self.input_tensor_shape = (256, 256, 3)
-        self.output_tensor_shape_list = [(64, 64, 2)]
+        self.info = {
+            "input_tensor": {"width": 256, "height": 256},
+            "output_tensor_sizes": [(64, 64, 2)],
+        }
 
     def pre_process(self, image: np.ndarray) -> np.ndarray:
         raise NotImplementedError("Pre-processing not implemented for this model.")
@@ -114,8 +120,10 @@ class TritonPoseNet(Model):
         # Extra triton requirements
         self.network_file_path = "./examples/assets/triton/posenet/network.fpk"
         self.info_file_path = "./examples/assets/triton/posenet/fpk_info.dat"
-        self.input_tensor_shape = (481, 353, 3)
-        self.output_tensor_shape_list = [(23, 31, 17), (23, 31, 34), (23, 31, 64)]
+        self.info = {
+            "input_tensor": {"width": 481, "height": 353},
+            "output_tensor_sizes": [(23, 31, 17), (23, 31, 34), (23, 31, 64)],
+        }
 
     def pre_process(self, image: np.ndarray) -> np.ndarray:
         raise NotImplementedError("Pre-processing not implemented for this model.")
@@ -136,8 +144,10 @@ class TritonSegmentation(Model):
         # Extra triton requirements
         self.network_file_path = "./examples/assets/triton/segmentation/network.fpk"
         self.info_file_path = "./examples/assets/triton/segmentation/fpk_info.dat"
-        self.input_tensor_shape = (321, 321, 3)
-        self.output_tensor_shape_list = [(321, 321)]
+        self.info = {
+            "input_tensor": {"width": 321, "height": 321},
+            "output_tensor_sizes": [(321, 321)],
+        }
 
     def pre_process(self, image: np.ndarray) -> np.ndarray:
         raise NotImplementedError("Pre-processing not implemented for this model.")

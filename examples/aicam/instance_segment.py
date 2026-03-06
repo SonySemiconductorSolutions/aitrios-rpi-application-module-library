@@ -1,5 +1,5 @@
 #
-# Copyright 2024 Sony Semiconductor Solutions Corp. All rights reserved.
+# Copyright 2025 Sony Semiconductor Solutions Corp. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 from modlib.apps import Annotator
 from modlib.devices import AiCamera
 from modlib.models.zoo import DeepLabV3Plus
-from modlib.devices.frame import IMAGE_TYPE
 
 
 class InstanceSegArgs:
@@ -41,9 +40,9 @@ with device as stream:
         detections = frame.detections.to_instance_segments(InstanceSegArgs)
 
         labels = [f"{model.labels[c]}" for _, c, _, _, _ in detections]
-        
+
         detections.bbox = detections.oriented_bbox()
         annotator.annotate_oriented_boxes(frame, detections, labels)
         annotator.annotate_instance_segments(frame, detections)
-    
+
         frame.display()

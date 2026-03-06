@@ -621,12 +621,13 @@ def pp_segment(output_tensors: List[np.ndarray]) -> Segments:
     Returns:
         The post-processed segmentation results.
     """
-    return Segments(mask=output_tensors[0])
+    mask = np.where(output_tensors[0] == 0, -1, output_tensors[0])  # set background pixels to -1 (/255)
+    return Segments(mask=mask.astype(np.uint8))
 
 
 def pp_yolo_segment_ultralytics(
     output_tensors: List[np.ndarray], input_tensor_sz: int = 640, max_detections: int = 10, threshold: float = 0.5
-) -> Segments:
+) -> InstanceSegments:
     """
     Performs post-processing on an Ultralytics YOLO-segments result tensor.
     In this case the model comes from the Ultralytics YOLOv8n-segments/YOLO11n-segments model exported

@@ -53,4 +53,3 @@ def test_roi_json_serializable_roundtrip():
     assert restored.top == pytest.approx(roi.top)
     assert restored.width == pytest.approx(roi.width)
     assert restored.height == pytest.approx(roi.height)
-

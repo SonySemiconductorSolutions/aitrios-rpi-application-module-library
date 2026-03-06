@@ -15,11 +15,13 @@
 #
 
 import os
-from typing import List
+from typing import List, Tuple, Optional
 
+import cv2
 import numpy as np
 
-from ..model import COLOR_FORMAT, MODEL_TYPE, Model
+from .utils import download_imx500_rpk_model
+from ..model import COLOR_FORMAT, MODEL_TYPE, Model, FRAMEWORK_FORMAT, ResizeFn
 from ..post_processors import (
     pp_cls,
     pp_cls_softmax,
@@ -30,8 +32,12 @@ from ..post_processors import (
     pp_segment,
     pp_od_yolo_ultralytics,
 )
-from ..results import Classifications, Detections, Poses, Segments
-from .utils import download_imx500_rpk_model
+from ..pre_processors import (
+    center_crop,
+    aspect_ratio_preserving_resize_with_pad,
+    model_preprocess,
+)
+from ..results import Classifications, Detections, Poses, Segments, ROI
 
 ASSETS_DIR = f"{os.path.dirname(os.path.abspath(__file__))}/assets"
 ZOO_DIR = f"{os.getenv('MODLIB_HOME', os.path.expanduser('~/.modlib'))}/zoo"
@@ -65,8 +71,8 @@ class InputTensorOnly(Model):
             preserve_aspect_ratio=False,
         )
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        return image
+    def pre_process(self, image: np.ndarray) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return image, image, ROI(left=0, top=0, width=1, height=1)
 
     def post_process(self, output_tensors: List[np.ndarray]):
         raise ValueError("No output tensors to process for InputTensorOnly model.")
@@ -95,9 +101,28 @@ class EfficientNetB0(Model):
             preserve_aspect_ratio=False,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/imagenet_labels.txt", dtype=str, delimiter="\n")
+        self.norm_mean = np.array([123.675, 116.28, 103.53])
+        self.norm_std = np.array([58.395, 57.12, 57.375])
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        x = cv2.resize(image, (256, 256), interpolation=cv2.INTER_CUBIC)  # bicubic PIL default
+        return center_crop(x, self.input_tensor_size)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.CHW,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Classifications:
         return pp_cls_softmax(output_tensors)
@@ -121,9 +146,28 @@ class EfficientNetLite0(Model):
             preserve_aspect_ratio=False,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/imagenet_labels.txt", dtype=str, delimiter="\n")
+        self.norm_mean = np.array([123.675, 116.28, 103.53])
+        self.norm_std = np.array([58.395, 57.12, 57.375])
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        x = cv2.resize(image, (256, 256), interpolation=cv2.INTER_CUBIC)  # bicubic PIL default
+        return center_crop(x, self.input_tensor_size)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.CHW,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Classifications:
         return pp_cls_softmax(output_tensors)
@@ -147,9 +191,28 @@ class EfficientNetV2B0(Model):
             preserve_aspect_ratio=True,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/imagenet_labels.txt", dtype=str, delimiter="\n")
+        self.norm_mean = np.array([123.675, 116.28, 103.53])
+        self.norm_std = np.array([58.395, 57.12, 57.375])
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        # NOTE: scale_factor: 1.51515?
+        return aspect_ratio_preserving_resize_with_pad(image, self.input_tensor_size, pad_values=0)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.HWC,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Classifications:
         return pp_cls(output_tensors)
@@ -173,9 +236,28 @@ class EfficientNetV2B1(Model):
             preserve_aspect_ratio=True,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/imagenet_labels.txt", dtype=str, delimiter="\n")
+        self.norm_mean = np.array([123.675, 116.28, 103.53])
+        self.norm_std = np.array([58.395, 57.12, 57.375])
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        # NOTE: scale_factor: 1.51515?
+        return aspect_ratio_preserving_resize_with_pad(image, self.input_tensor_size, pad_values=0)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.HWC,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Classifications:
         return pp_cls(output_tensors)
@@ -199,9 +281,28 @@ class EfficientNetV2B2(Model):
             preserve_aspect_ratio=True,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/imagenet_labels.txt", dtype=str, delimiter="\n")
+        self.norm_mean = np.array([123.675, 116.28, 103.53])
+        self.norm_std = np.array([58.395, 57.12, 57.375])
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        # NOTE: scale_factor: 1.51515?
+        return aspect_ratio_preserving_resize_with_pad(image, self.input_tensor_size, pad_values=0)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.HWC,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Classifications:
         return pp_cls(output_tensors)
@@ -225,9 +326,28 @@ class MNASNet1_0(Model):
             preserve_aspect_ratio=False,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/imagenet_labels.txt", dtype=str, delimiter="\n")
+        self.norm_mean = np.array([123.675, 116.28, 103.53])
+        self.norm_std = np.array([58.395, 57.12, 57.375])
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        x = cv2.resize(image, (256, 256), interpolation=cv2.INTER_CUBIC)  # bicubic PIL default
+        return center_crop(x, self.input_tensor_size)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.CHW,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Classifications:
         return pp_cls_softmax(output_tensors)
@@ -251,9 +371,28 @@ class MobileNetV2(Model):
             preserve_aspect_ratio=True,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/imagenet_labels.txt", dtype=str, delimiter="\n")
+        self.norm_mean = 127.5
+        self.norm_std = 127.5
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        # NOTE: resizescale: 1.1428571428571428 ?
+        return aspect_ratio_preserving_resize_with_pad(image, self.input_tensor_size, pad_values=0)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.HWC,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Classifications:
         return pp_cls(output_tensors)
@@ -277,9 +416,27 @@ class MobileViTXS(Model):
             preserve_aspect_ratio=True,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/imagenet_labels.txt", dtype=str, delimiter="\n")
+        self.norm_mean = 0.0
+        self.norm_std = 255.0
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        return aspect_ratio_preserving_resize_with_pad(image, self.input_tensor_size, pad_values=0)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.HWC,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Classifications:
         return pp_cls_softmax(output_tensors)
@@ -303,9 +460,27 @@ class MobileViTXXS(Model):
             preserve_aspect_ratio=True,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/imagenet_labels.txt", dtype=str, delimiter="\n")
+        self.norm_mean = 0.0
+        self.norm_std = 255.0
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        return aspect_ratio_preserving_resize_with_pad(image, self.input_tensor_size, pad_values=0)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.HWC,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Classifications:
         return pp_cls_softmax(output_tensors)
@@ -329,9 +504,28 @@ class RegNetX002(Model):
             preserve_aspect_ratio=False,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/imagenet_labels.txt", dtype=str, delimiter="\n")
+        self.norm_mean = np.array([123.675, 116.28, 103.53])
+        self.norm_std = np.array([58.395, 57.12, 57.375])
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        x = cv2.resize(image, (256, 256), interpolation=cv2.INTER_CUBIC)  # bicubic PIL default
+        return center_crop(x, self.input_tensor_size)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.CHW,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Classifications:
         return pp_cls_softmax(output_tensors)
@@ -355,9 +549,28 @@ class RegNetY002(Model):
             preserve_aspect_ratio=False,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/imagenet_labels.txt", dtype=str, delimiter="\n")
+        self.norm_mean = np.array([123.675, 116.28, 103.53])
+        self.norm_std = np.array([58.395, 57.12, 57.375])
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        x = cv2.resize(image, (256, 256), interpolation=cv2.INTER_CUBIC)  # bicubic PIL default
+        return center_crop(x, self.input_tensor_size)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.CHW,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Classifications:
         return pp_cls_softmax(output_tensors)
@@ -381,9 +594,28 @@ class RegNetY004(Model):
             preserve_aspect_ratio=False,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/imagenet_labels.txt", dtype=str, delimiter="\n")
+        self.norm_mean = np.array([123.675, 116.28, 103.53])
+        self.norm_std = np.array([58.395, 57.12, 57.375])
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        x = cv2.resize(image, (256, 256), interpolation=cv2.INTER_CUBIC)  # bicubic PIL default
+        return center_crop(x, self.input_tensor_size)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.CHW,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Classifications:
         return pp_cls_softmax(output_tensors)
@@ -407,9 +639,28 @@ class ResNet18(Model):
             preserve_aspect_ratio=False,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/imagenet_labels.txt", dtype=str, delimiter="\n")
+        self.norm_mean = np.array([123.675, 116.28, 103.53])
+        self.norm_std = np.array([58.395, 57.12, 57.375])
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        x = cv2.resize(image, (256, 256), interpolation=cv2.INTER_CUBIC)  # bicubic PIL default
+        return center_crop(x, self.input_tensor_size)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.CHW,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Classifications:
         return pp_cls_softmax(output_tensors)
@@ -433,9 +684,28 @@ class ShuffleNetV2X1_5(Model):
             preserve_aspect_ratio=False,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/imagenet_labels.txt", dtype=str, delimiter="\n")
+        self.norm_mean = np.array([123.675, 116.28, 103.53])
+        self.norm_std = np.array([58.395, 57.12, 57.375])
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        x = cv2.resize(image, (256, 256), interpolation=cv2.INTER_CUBIC)  # bicubic PIL default
+        return center_crop(x, self.input_tensor_size)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.CHW,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Classifications:
         return pp_cls_softmax(output_tensors)
@@ -459,9 +729,28 @@ class SqueezeNet1_0(Model):
             preserve_aspect_ratio=False,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/imagenet_labels.txt", dtype=str, delimiter="\n")
+        self.norm_mean = np.array([123.675, 116.28, 103.53])
+        self.norm_std = np.array([58.395, 57.12, 57.375])
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        x = cv2.resize(image, (256, 256), interpolation=cv2.INTER_CUBIC)  # bicubic PIL default
+        return center_crop(x, self.input_tensor_size)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.CHW,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Classifications:
         return pp_cls_softmax(output_tensors)
@@ -492,9 +781,27 @@ class EfficientDetLite0(Model):
             preserve_aspect_ratio=True,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/coco_labels_91.txt", dtype=str, delimiter="\n")
+        self.norm_mean = 127.5
+        self.norm_std = 127.5
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        return aspect_ratio_preserving_resize_with_pad(image, self.input_tensor_size, pad_values=0)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.HWC,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Detections:
         return pp_od_efficientdet_lite0(output_tensors)
@@ -520,9 +827,29 @@ class NanoDetPlus416x416(Model):
             preserve_aspect_ratio=False,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/coco_labels_80.txt", dtype=str, delimiter="\n")
+        self.norm_mean = np.array([103.53, 116.28, 123.675])
+        self.norm_std = np.array([57.375, 57.12, 58.395])
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        x = cv2.resize(image, self.input_tensor_size, interpolation=cv2.INTER_LINEAR)  # Bilinear
+        roi = ROI(left=0, top=0, width=1, height=1)
+        return x, roi
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.HWC,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Detections:
         return pp_od_bscn(output_tensors)
@@ -548,9 +875,29 @@ class SSDMobileNetV2FPNLite320x320(Model):
             preserve_aspect_ratio=False,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/coco_labels_91.txt", dtype=str, delimiter="\n")
+        self.norm_mean = 127.5
+        self.norm_std = 127.5
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        x = cv2.resize(image, self.input_tensor_size, interpolation=cv2.INTER_LINEAR)  # Bilinear
+        roi = ROI(left=0, top=0, width=1, height=1)
+        return x, roi
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.HWC,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Detections:
         return pp_od_bscn(output_tensors)
@@ -571,12 +918,30 @@ class YOLOv8n(Model):
             model_file=download_imx500_rpk_model(model_file="imx500_network_yolov8n_pp.rpk", save_dir=ZOO_DIR),
             model_type=MODEL_TYPE.RPK_PACKAGED,
             color_format=COLOR_FORMAT.RGB,
-            preserve_aspect_ratio=False,
+            preserve_aspect_ratio=True,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/coco_labels_80.txt", dtype=str, delimiter="\n")
+        self.norm_mean = 0.0
+        self.norm_std = 255.0
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        return aspect_ratio_preserving_resize_with_pad(image, self.input_tensor_size, pad_values=114)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.CHW,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Detections:
         return pp_od_yolo_ultralytics(output_tensors)
@@ -597,12 +962,30 @@ class YOLO11n(Model):
             model_file=download_imx500_rpk_model(model_file="imx500_network_yolo11n_pp.rpk", save_dir=ZOO_DIR),
             model_type=MODEL_TYPE.RPK_PACKAGED,
             color_format=COLOR_FORMAT.RGB,
-            preserve_aspect_ratio=False,
+            preserve_aspect_ratio=True,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/coco_labels_80.txt", dtype=str, delimiter="\n")
+        self.norm_mean = 0.0
+        self.norm_std = 255.0
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        return aspect_ratio_preserving_resize_with_pad(image, self.input_tensor_size, pad_values=114)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.CHW,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Detections:
         return pp_od_yolo_ultralytics(output_tensors)
@@ -631,7 +1014,12 @@ class Posenet(Model):
             preserve_aspect_ratio=False,
         )
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
         raise NotImplementedError("Pre-processing not implemented for this model.")
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Poses:
@@ -653,11 +1041,29 @@ class HigherHRNet(Model):
             model_file=download_imx500_rpk_model(model_file="imx500_network_higherhrnet_coco.rpk", save_dir=ZOO_DIR),
             model_type=MODEL_TYPE.RPK_PACKAGED,
             color_format=COLOR_FORMAT.RGB,
-            preserve_aspect_ratio=False,
+            preserve_aspect_ratio=True,
         )
+        self.norm_mean = np.array([123.675, 116.28, 103.53])
+        self.norm_std = np.array([58.395, 57.12, 57.375])
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        return aspect_ratio_preserving_resize_with_pad(image, self.input_tensor_size, pad_values=114)
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.HWC,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Poses:
         return pp_higherhrnet(output_tensors)
@@ -686,9 +1092,29 @@ class DeepLabV3Plus(Model):
             preserve_aspect_ratio=False,
         )
         self.labels = np.genfromtxt(f"{ASSETS_DIR}/pascal_voc_2012.txt", dtype=str, delimiter="\n")
+        self.norm_mean = 127.5
+        self.norm_std = 127.5
 
-    def pre_process(self, image: np.ndarray) -> np.ndarray:
-        raise NotImplementedError("Pre-processing not implemented for this model.")
+    def _resize_fn(self, image: np.ndarray) -> Tuple[np.ndarray, ROI]:
+        x = cv2.resize(image, self.input_tensor_size, interpolation=cv2.INTER_LINEAR)  # Bilinear
+        roi = ROI(left=0, top=0, width=1, height=1)
+        return x, roi
+
+    def pre_process(
+        self,
+        image: np.ndarray,
+        src_color_format: COLOR_FORMAT = COLOR_FORMAT.BGR,  # from cv2.imread
+        resize_fn: Optional[ResizeFn] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, ROI]:
+        return model_preprocess(
+            x=image,
+            resize_fn=resize_fn if resize_fn is not None else self._resize_fn,
+            src_color_format=src_color_format,
+            model_color_format=self.color_format,
+            norm_mean=self.norm_mean,
+            norm_std=self.norm_std,
+            framework_format=FRAMEWORK_FORMAT.HWC,
+        )
 
     def post_process(self, output_tensors: List[np.ndarray]) -> Segments:
         return pp_segment(output_tensors)

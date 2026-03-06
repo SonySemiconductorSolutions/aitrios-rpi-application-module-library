@@ -8,111 +8,60 @@ import ApiLink from '@site/src/components/ApiLink';
 
 # Interpreter Devices
 
-Interpreter devices allow you to develop and test your application locally on your development PC without requiring a physical camera. This is particularly useful for rapid prototyping, debugging, and testing your AI models and application logic before deploying to a physical device. With interpreter devices, you can use your own image data source and develop your application as if it were connected to a camera image sensor. 
+Interpreter devices allow you to develop and test your application locally on your development PC without requiring a physical camera. This is particularly useful for rapid prototyping, debugging, and testing your AI models and application logic before deploying to a physical device. With interpreter devices, you can use your own image data source and develop your application as if it were connected to a camera image sensor.
 
-## Keras Interpreter
+Additionally, interpreter devices allow you to obtain a solid baseline for model evaluation. The evaluation results from interpreter devices can serve as a benchmark when assessing the performance of your models after they have been quantized, packaged, and converted for deployment on the IMX500 AiCamera, enabling you to measure any accuracy trade-offs introduced during the model training and optimization process.  
 
-1. Install additional interpreter runtime dependencies.
+Interpreter devices are designed to work on a `server`-`client` basis. Where the user is fully responsible for setting up the server, and Modlib integrates a `InterpreterClient` that mimics the API's of any other device in the Application Module Library.
 
-```
-pip install tensorflow
-```
+## Interpreter Server 
 
-2. Define your data source
+The Interpreter Server can be designed and run on any hardware of you choice. The only requirement is that an HTTP endpoint is available to the `InterpreterClient` and integrates the following methods:
 
-You can decide what data to work with. Choos between `Images` or a `Video`.
+| Method | Endpoint | Description | Request | Response |
+|--------|----------|-------------|---------|----------|
+| `POST` | `/init` | Initializes a new inference session and loads the model. | Accepts any JSON object (dict). The client sends the `data` parameter from `device.deploy(model, data={...})` as JSON. | Must return JSON with a `session_id` field (string). Optionally may include `status: "error"` and `error` (string) fields to indicate failure.<br/><br/>**Example:**<br/>```{"session_id": "abc123...","status": "success"}``` |
+| `DELETE` | `/session/{session_id}` | Closes and cleans up an inference session. | Path parameter: `session_id` (string) - The session identifier returned from `/init` | Must return HTTP 200 OK. Response body is not parsed by the client. |
+| `GET` | `/input_tensor_size/{session_id}` | Retrieves the expected input tensor dimensions for the model. | Path parameter: `session_id` (string) - The session identifier | Must return JSON with an `input_tensor_size` field (array). The client accesses `input_tensor_size[0]` and `input_tensor_size[1]` for width and height respectively. Optionally may include `status: "error"` and `error` (string) fields to indicate failure.<br/><br/>**Example:**<br/>```{"input_tensor_size": [320, 320]}``` |
+| `POST` | `/infer/{session_id}` | Performs inference on the provided input tensor. | Path parameter: `session_id` (string) - The session identifier<br/><br/>Multipart form data with a file field named `input_npy` containing a NumPy array in `.npy` format (binary). | Must return binary content in `.npz` format (NumPy compressed archive). The client loads this as `np.load()` and extracts tensors from it. Must return HTTP 200 OK on success. |
 
-<Tabs>
-  <TabItem value="images" label="Images" default>
 
-```python
-import time
+For an example implenation of such a Interpreter Server, please have a look at the the example folder in Modlib: https://github.com/SonySemiconductorSolutions/aitrios-rpi-application-module-library/tree/main/examples/interpreters
 
-from modlib.devices import Images, KerasInterpreter
 
-device = KerasInterpreter(source=Images("./path/to/image/directory"))
+## Interpreter Client
 
-with device as stream:
-    for frame in stream:
-        frame.display(resize_image=True)
-        time.sleep(1)
-```
+The `InterpreterClient` works like any other device in Modlib. 
 
-  </TabItem>
-  <TabItem value="video" label="Video" default>
-
-```python
-from modlib.devices import KerasInterpreter, Video
-
-device = KerasInterpreter(source=Video("./path/to/video.mp4"))
-
-with device as stream:
-    for frame in stream:
-        frame.display()
-```
-
-  </TabItem>
-</Tabs>
-
-3. Deploy and run your model 
-
-The Keras Interpreter device requires to deploy a custom model with `model_type=MODEL_TYPE.KERAS`. 
-For more information on how to deploy custom models see [> Custom Models](../getting_started/custom_models.md).
-
-:::info  
-Note that the pre-processing method in the Model object is required when working with interpreter devices.  
+:::note  
+The InterpreterClient requires an inference server running simultaneously.
 :::
 
-
-## ONNX Interpreter
-
-1. Install additional interpreter runtime dependencies.
-
 ```
-pip install onnxruntime
-```
+from modlib.apps import Annotator
+from modlib.devices import Video, InterpreterClient
+from modlib.models.zoo import YOLO11n
 
-2. Define your data source
+device = InterpreterClient(
+    source=Video("./examples/assets/palace.mp4"),
+    endpoint="http://localhost:8000",
+    enable_input_tensor=False,
+)
 
-You can decide what data to work with. Choos between `Images` or a `Video`.
+model = YOLO11n()
+device.deploy(model, data={
+    "model_uri": f"/models/yolo11n_imx_model/yolo11n_imx.onnx",
+    "options": {"is_quantized": True},
+})
 
-<Tabs>
-  <TabItem value="images" label="Images" default>
-
-```python
-import time
-
-from modlib.devices import Images, ONNXInterpreter
-
-device = ONNXInterpreter(source=Images("./path/to/image/directory"))
+annotator = Annotator()
 
 with device as stream:
     for frame in stream:
-        frame.display(resize_image=True)
-        time.sleep(1)
-```
 
-  </TabItem>
-  <TabItem value="video" label="Video" default>
+        detections = frame.detections[frame.detections.confidence > 0.40]
+        labels = [f"{model.labels[class_id]}: {score:0.2f}" for _, score, class_id, _ in detections]
+        annotator.annotate_boxes(frame, detections, labels=labels)
 
-```python
-from modlib.devices import ONNXInterpreter, Video
-
-device = ONNXInterpreter(source=Video("./path/to/video.mp4"))
-
-with device as stream:
-    for frame in stream:
         frame.display()
 ```
-
-  </TabItem>
-</Tabs>
-
-3. Deploy and run your model 
-
-The ONNX Interpreter device requires to deploy a custom model with `model_type=MODEL_TYPE.ONNX`. 
-For more information on how to deploy custom models see [> Custom Models](../getting_started/custom_models.md).
-
-:::info  
-Note that the pre-processing method in the Model object is required when working with interpreter devices.  
-:::

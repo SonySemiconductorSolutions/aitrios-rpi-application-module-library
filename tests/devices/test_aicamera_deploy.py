@@ -25,10 +25,11 @@ def camera():
     with patch("modlib.devices.ai_camera.ai_camera.check_dir_required") as mock_check_dir_required:
         mock_check_dir_required.return_value = None
         from modlib.devices import AiCamera
-        def init_overwrite(self, *args, **kwargs): 
+        def init_overwrite(self, *args, **kwargs):
             self.camera_id = None
+            self.data_injection = kwargs.get('data_injection', False)
         AiCamera.__init__ = init_overwrite
-        yield AiCamera() 
+        yield AiCamera()
 
 @pytest.fixture
 def model():
@@ -42,7 +43,7 @@ def model():
 @pytest.fixture
 def mock_camera_methods(camera):
     camera.prepare_model_for_deployment = MagicMock()
-    yield camera   
+    yield camera
 
 @pytest.fixture
 def mock_dependencies(model, camera):
@@ -86,18 +87,18 @@ def test_prepare_model_for_deployment_is_converted(mock_dependencies):
 
     model.model_type = MODEL_TYPE.CONVERTED
     mock_exists.return_value = True
-    
+
     network_file = camera.prepare_model_for_deployment(model)
 
     mock_packager.run.assert_called_once()
     assert network_file is not None
 
-def test_prepare_model_for_deployment_is_converted_networkfile_missing(mock_dependencies): 
+def test_prepare_model_for_deployment_is_converted_networkfile_missing(mock_dependencies):
     _, mock_packager, mock_exists, model, camera = mock_dependencies
-    
+
     model.model_type = MODEL_TYPE.CONVERTED
     mock_exists.return_value = False
-    
+
     network_file = camera.prepare_model_for_deployment(model)
 
     mock_packager.run.assert_called_once()
@@ -123,7 +124,7 @@ def test_prepare_model_for_deployment_is_framework_networkfile_missing(mock_depe
     network_file = camera.prepare_model_for_deployment(model)
 
     mock_converter.run.assert_called_once()
-    mock_packager.run.assert_called_once()    
+    mock_packager.run.assert_called_once()
     assert network_file is None
 
 def test_prepare_model_for_deployment_is_framework_onnx(mock_dependencies):
@@ -133,7 +134,7 @@ def test_prepare_model_for_deployment_is_framework_onnx(mock_dependencies):
 
     network_file = camera.prepare_model_for_deployment(model)
     mock_converter.run.assert_called_once()
-    mock_packager.run.assert_called_once()    
+    mock_packager.run.assert_called_once()
 
     assert network_file is not None
 
@@ -149,14 +150,14 @@ def test_prepare_model_for_deployment_is_framework_onnx_networkfile_missing(mock
     mock_packager.run.assert_called_once()
     assert network_file is None
 
-def test_deploy_networkfile(mock_camera_methods, model):   
+def test_deploy_networkfile(mock_camera_methods, model):
     camera = mock_camera_methods
 
     with patch("modlib.devices.ai_camera.ai_camera.IMX500") as MockIMX500:
         camera.deploy(model)
 
         camera.prepare_model_for_deployment.assert_called_once()
-        MockIMX500.assert_called_once_with(os.path.abspath(camera.prepare_model_for_deployment.return_value), camera_id=camera.camera_id)
+        MockIMX500.assert_called_once_with(os.path.abspath(camera.prepare_model_for_deployment.return_value), camera_id=camera.camera_id, tensor_injection=camera.data_injection)
 
 def test_deploy_networkfile_missing(mock_camera_methods, model):
     camera = mock_camera_methods

@@ -15,16 +15,23 @@
 #
 
 import os
+import sys
 
-from tests.utils import get_coco_samples, get_imagenet_samples, get_tracking_video
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../tests")))
+from utils import get_coco_samples, get_coco_keypoints_samples, get_imagenet_samples, get_imagenet_dataset, get_tracking_video, get_coco_annotations, get_voc_samples
+
 
 ASSETS_DIR = f"{os.path.dirname(os.path.abspath(__file__))}/assets"
 
 
 def get_assets():
     get_imagenet_samples(os.path.join(ASSETS_DIR, "imagenet_samples"))
+    get_imagenet_dataset(os.path.join(ASSETS_DIR, "imagenet_dataset"))
     get_coco_samples(os.path.join(ASSETS_DIR, "coco_samples"))
+    get_coco_keypoints_samples(os.path.join(ASSETS_DIR, "coco_keypoints_samples"))
     get_tracking_video(ASSETS_DIR)
+    get_coco_annotations(os.path.join(ASSETS_DIR, "coco_annotations"))
+    get_voc_samples(os.path.join(ASSETS_DIR, "voc_samples"))
 
 
 if __name__ == "__main__":

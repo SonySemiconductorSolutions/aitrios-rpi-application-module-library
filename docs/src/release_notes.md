@@ -6,6 +6,31 @@ sidebar_position: 6
 
 # Release Notes 🚀
 
+## Modlib 1.4.0
+
+### ⭐ **New Features**
+
+- **Data Injection for the AiCamera**: Inject preprocessed input tensors into the IMX500 to evaluate the on-device RPK model. One can choose model preprocessing (best accuracy, comparable with InterpreterClient), model + ISP limitation (no padding, matches camera behavior), or full ISP preprocessing. See [Data Injection](getting_started/data_injection.md) for more information. 
+- **Model Evaluators for Classification, Object Detection, Pose Estimation and Segmentation**: Dedicated evaluators (`ClassificationEvaluator`, `COCOEvaluator`, `COCOPoseEvaluator`, `VocSegEvaluator`) compute standard metrics (e.g. top-1/top-5 accuracy, COCO AP/AR, mIoU) from model predictions and ground truth for reproducible benchmarking.
+- **InterpreterClient device**: New client device that runs Modlib against an external inference server over HTTP. Use float or quantized ONNX/Keras models on your own hardware while keeping the same device API; ideal for development and comparing server-side vs edge (AiCamera) results.
+- **Inference Server Examples**: Example scripts and Docker setup in `examples/interpreters/` show how to run an interpreter server that supports quantized ONNX and Keras models, so you can plug in the InterpreterClient and run evaluations end-to-end.
+- **Model preprocessor function for all models in the model zoo**: Every zoo model exposes a `pre_process` fucntion. Use it for data injection and InterpreterClient pipelines.
+- **IMX500 ISP utilities** (`modlib.devices.imx500.isp`): New module that collects IMX500 ISP-related helpers for preparing the input tensor for data injection. Includes lower-level functionalities (resize/crop, normalize/quantize, padding, denormalize)
+- **Dataset Source**: New `Dataset` source that recursively scans a directory for images and yields `DatasetSample` that are ideal for evaluation workflows.
+- **Triton® threading support**: Use Python threading with the Triton® Smart Camera the same way as with the AiCamera, as demonstrated in `examples/triton/threads.py`.
+
+
+### ❌ **Removed / Replaced**
+
+- **Keras & ONNX Interpreter devices**: The previous in-process Keras and ONNX interpreter devices are removed. Use the new InterpreterClient with a separate inference server (see `examples/interpreters/`) for float or quantized ONNX/Keras models.
+- **Removed unused Frame `input_tensor` field**: The placeholder `input_tensor` field on `Frame` has been removed. Use the model’s `pre_process` output or device-specific handling (e.g. AiCamera `enable_input_tensor`) when you need the input tensor or its visualization.
+
+
+### 📦 **Distribution & Infrastructure**
+
+- **Linter extended to examples and tests**: Ruff linting and formatting now run on the `examples/` and `tests/` directories as well as the main library for consistent style and fewer issues across the repo.
+
+
 ## Modlib 1.3.0
 
 ### ⭐ **New Features**

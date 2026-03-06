@@ -1,3 +1,7 @@
 palace.mp4
 coco_samples
 imagenet_samples
+imagenet_dataset
+coco_annotations
+coco_keypoints_samples
+voc_samples

@@ -90,7 +90,7 @@ Next to RPK_PACKAGED models, one can also provide a CONVERTED, or quantized KERA
 
 Implement the necessary post-processing method, which has a **strictly defined signature and expected output**. 
 - **Argument:** output_tensors (`List[np.ndarray]`) A list of output tensors returned by your custom model
-- **Returns:** One of the <ApiLink to="/api-reference/models/results#result">Result</ApiLink> types (`Classifications`, `Detections`, `Poses`, `Segments` or `Anomaly`)
+- **Returns:** One of the <ApiLink to="/api-reference/models/results#result">Result</ApiLink> types (`Classifications`, `Detections`, `Poses`, `Segments`, `InstanceSegments` or `Anomaly`)
 
 ```python
 def post_process(self, output_tensors: List[np.ndarray]) -> Union[Classifications, Detections, Poses, Segments, Anomaly]:

@@ -30,7 +30,7 @@ def test_annotations(test_apps_device):
     with test_apps_device as stream:
         for frame in stream:
             detections = frame.detections[frame.detections.confidence > 0.55]
-            
+
             labels = [f"{LABELS[class_id]}: {score:0.2f}" for _, score, class_id, _ in detections]
             annotator.annotate_boxes(frame, detections, labels=labels)
 

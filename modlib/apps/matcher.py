@@ -169,9 +169,9 @@ class DetectedObject:
 
 class Matcher:
     """
-    The `Matcher` module is designed to evaluate spatial relationships between objects, such as determining whether one object is contained within another or whether two objects intersect. 
-    It is suitable for both **simple relationships** (e.g., checking if one object is within another) and **complex relationships** (e.g., evaluating overlaps between multiple objects across different classes).  
-    
+    The `Matcher` module is designed to evaluate spatial relationships between objects, such as determining whether one object is contained within another or whether two objects intersect.
+    It is suitable for both **simple relationships** (e.g., checking if one object is within another) and **complex relationships** (e.g., evaluating overlaps between multiple objects across different classes).
+
     For example, to create and use Matcher it can be used like this:
     ```
     from modlib.apps import Matcher

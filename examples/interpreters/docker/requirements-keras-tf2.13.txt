@@ -1,0 +1,8 @@
+python-multipart
+fastapi==0.95.2  # uses pydantic v1
+uvicorn[standard]
+tensorflow==2.13.0
+numpy==1.24.3
+model-compression-toolkit==2.2.1  # avoids pydatic v2
+mct-quantizers
+sony-custom-layers  #edge-mdt-cl requires tf>=2.15

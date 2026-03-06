@@ -15,17 +15,17 @@
 #
 
 import os
-import cv2
 import pytest
+from pathlib import Path
 
-from modlib.devices import Images, Video
+from modlib.devices import Images, Video, Dataset
 
 from tests.utils import get_imagenet_samples, get_coco_samples, get_tracking_video
 
 
 @pytest.fixture
 def imagenet_source():
-    
+
     current_dir = f"{os.path.dirname(os.path.abspath(__file__))}/assets/imagenet_samples"
     _ = get_imagenet_samples(current_dir)
 
@@ -49,8 +49,18 @@ def tracking_video():
     return Video(r['path'])
 
 
+@pytest.fixture
+def imagenet_dataset():
+
+    current_dir = f"{os.path.dirname(os.path.abspath(__file__))}/assets/imagenet_samples"
+    _ = get_imagenet_samples(current_dir)
+
+    return Dataset(current_dir)
+
+
 def test_imagenet_source(imagenet_source):
-    assert len(imagenet_source.image_files) == 3
+    assert imagenet_source.timestamp is not None
+    assert len(imagenet_source) == 3
 
     _ = imagenet_source.get_frame() # goldfish
     _ = imagenet_source.get_frame() # ipod
@@ -58,17 +68,25 @@ def test_imagenet_source(imagenet_source):
     assert imagenet_source.get_frame() is None
 
 
+def test_imagenet_source_iterator(imagenet_source):
+    for i, _ in enumerate(imagenet_source):
+        if i > 2:
+            raise ValueError(f"Unexpected number of images: {i}")
+
+
 def test_coco_source(coco_source):
-    assert len(coco_source.image_files) == 3
+    assert len(coco_source) == 4
 
     _ = coco_source.get_frame() # stop sign (724)
     _ = coco_source.get_frame() # skier (785)
     _ = coco_source.get_frame() # tenis player (885)
+    _ = coco_source.get_frame() # surfboard (1490)
     assert coco_source.get_frame() is None
 
 
 def test_tracking_video(tracking_video):
-    assert tracking_video.total_frames == 329
+    assert tracking_video.timestamp is not None
+    assert len(tracking_video) == 329
     assert tracking_video.frame_number == 0
 
     _ = tracking_video.get_frame()
@@ -84,4 +102,35 @@ def test_tracking_video(tracking_video):
     assert tracking_video.frame_number == 329
 
     assert tracking_video.get_frame() is None
-    
+
+
+def test_imagenet_dataset(imagenet_dataset):
+    assert imagenet_dataset.timestamp is not None
+    assert len(imagenet_dataset) == 3
+
+    _ = imagenet_dataset.get_frame() # goldfish
+    _ = imagenet_dataset.get_frame() # ipod
+    _ = imagenet_dataset.get_frame() # daisy
+
+    assert imagenet_dataset.get_frame() is None
+
+
+def test_imagenet_dataset_iterator(imagenet_dataset):
+    for i, sample in enumerate(imagenet_dataset):
+        if i == 0:
+            assert sample.image_id == "a_goldfish"
+        elif i == 1:
+            assert sample.image_id == "b_ipod"
+        elif i == 2:
+            assert sample.image_id == "c_daisy"
+        else:
+            raise ValueError(f"Unexpected number of images: {i}")
+
+
+def test_non_exist():
+    with pytest.raises(FileNotFoundError):
+        Images(Path("path/to/non_exist"))
+    with pytest.raises(FileNotFoundError):
+        Video(Path("path/to/non_exist"))
+    with pytest.raises(FileNotFoundError):
+        Dataset(Path("path/to/non_exist"))

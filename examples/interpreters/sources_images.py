@@ -16,9 +16,9 @@
 
 import time
 
-from modlib.devices import Images, KerasInterpreter
+from modlib.devices import Images, InterpreterClient
 
-device = KerasInterpreter(source=Images("./examples/assets/coco_samples"))
+device = InterpreterClient(source=Images("./examples/assets/coco_samples"))
 
 with device as stream:
     for frame in stream:
