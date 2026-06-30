@@ -16,13 +16,14 @@
 
 import base64
 import sys
+import logging
 from dataclasses import dataclass
 from typing import Optional, Tuple, Union
 
 import cv2
 import numpy as np
 
-from ..models import COLOR_FORMAT, ROI, Anomaly, Classifications, Detections, Poses, Segments, InstanceSegments
+from ..models import COLOR_FORMAT, ROI, Anomaly, Classifications, Detections, Poses, Segments, InstanceSegments, OBB
 
 CV2_WINDOWS = set()
 
@@ -50,6 +51,7 @@ class RESULT_TYPE:
     Segments = Segments
     InstanceSegments = InstanceSegments
     Anomaly = Anomaly
+    OBB = OBB
 
 
 class Frame:
@@ -72,7 +74,7 @@ class Frame:
     height: int  #: The height of the frame.
     channels: int  #: The number of channels in the frame.
     detections: Union[
-        Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly
+        Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly, OBB
     ]  #: The detections in the frame.
     new_detection: bool  #: Flag if the provided detections are updated or an old copy.
     fps: float  #: The frames per second of the video stream.
@@ -89,7 +91,7 @@ class Frame:
         width: int,
         height: int,
         channels: int,
-        detections: Union[Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly],
+        detections: Union[Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly, OBB],
         new_detection: bool,
         fps: float,
         dps: float,
@@ -135,7 +137,7 @@ class Frame:
         self._image = value
 
     @property
-    def detections(self) -> Union[Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly]:
+    def detections(self) -> Union[Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly, OBB]:
         """
         Get the detections in the frame.
 
@@ -148,10 +150,11 @@ class Frame:
         if self._detections is not None:
             return self._detections
         else:
-            raise ValueError("No model is running: `frame.detections` unavailable.\n")
+            logging.warning("`frame.detections` is unavailable. Returning None instead.")
+            return None
 
     @detections.setter
-    def detections(self, value: Union[Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly]):
+    def detections(self, value: Union[Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly, OBB]):
         self._detections = value
 
     def prepare_for_display(

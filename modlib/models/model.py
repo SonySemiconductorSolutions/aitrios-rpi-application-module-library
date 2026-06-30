@@ -22,7 +22,7 @@ from typing import List, Optional, Tuple, Union, Callable, get_type_hints
 
 import numpy as np
 
-from .results import Anomaly, Classifications, Detections, Poses, Segments, InstanceSegments, ROI
+from .results import Anomaly, Classifications, Detections, Poses, Segments, InstanceSegments, ROI, OBB
 
 
 @dataclass
@@ -73,6 +73,7 @@ class TASK_TYPE:
     INSTANCE_SEGMENTATION = "instance_segmentation"
     POSE = "pose"
     ANOMALY = "anomaly"
+    OBB = "obb"
 
 
 # NOTE: Optionally define a different resize/cropping/padding strategy with the model pre-process method
@@ -136,7 +137,7 @@ class Model(ABC):
     @abstractmethod
     def post_process(
         self, output_tensors: List[np.ndarray]
-    ) -> Union[Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly]:
+    ) -> Union[Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly, OBB]:
         """
         Perform post-processing on the tensor data and tensor layout.
 
@@ -387,6 +388,7 @@ class Model(ABC):
             - InstanceSegments -> TASK_TYPE.INSTANCE_SEGMENTATION
             - Poses -> TASK_TYPE.POSE
             - Anomaly -> TASK_TYPE.ANOMALY
+            - OBB -> TASK_TYPE.OBB
 
         Returns:
             The task type of the model.
@@ -413,7 +415,7 @@ class Model(ABC):
                 "Example:\n"
                 "    def post_process(self, output_tensors: List[np.ndarray]) -> Classifications:\n"
                 "        ...\n\n"
-                "Valid return types are: Classifications, Detections, Poses, Segments, InstanceSegments, or Anomaly."
+                "Valid return types are: Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly, or OBB."
             )
 
         # Look up the task type from the return type

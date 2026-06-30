@@ -55,7 +55,7 @@ annotator = Annotator()
 with device as stream:
     for frame in stream:
         detections = frame.detections[frame.detections.confidence > 0.3]
-        labels = [f"{model.labels[c]}" for m, c, s, _, _ in detections]
+        labels = [f"{model.labels[c]}" for c in detections.class_id]
         annotator.annotate_instance_segments(frame, detections)
         annotator.annotate_boxes(frame, detections, labels=labels)
 

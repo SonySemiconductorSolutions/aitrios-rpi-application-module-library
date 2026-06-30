@@ -33,7 +33,7 @@ import numpy as np
 
 from modlib.apps.area import Area
 from modlib.devices.frame import IMAGE_TYPE, Frame
-from modlib.models import Detections, Poses, Segments, InstanceSegments
+from modlib.models import Detections, Poses, Segments, InstanceSegments, OBB
 
 DEFAULT_COLOR_PALETTE = [
     "#FFCC14",
@@ -327,7 +327,7 @@ class Annotator:
             corner_length: Length of the corners if `corner_radius` is 0. Defaults to 10.
 
         Returns:
-            The annotated frame image.
+            The annotated frame.image
 
         Example:
             ```python
@@ -338,9 +338,10 @@ class Annotator:
             not isinstance(detections, Detections)
             and not isinstance(detections, Poses)
             and not isinstance(detections, InstanceSegments)
+            and not isinstance(detections, OBB)
         ):
             raise ValueError(
-                "Input `detections` should be of type Detections, Poses, or InstanceSegments that contain bboxes"
+                "Input `detections` should be of type Detections, Poses, InstanceSegments, or OBB that contain bboxes"
             )
 
         # scale ALL bboxes at once to frame size and account for ROI if needed
@@ -348,9 +349,15 @@ class Annotator:
 
         h, w, _ = frame.image.shape
         for i in range(len(detections)):
-            x1, y1, x2, y2 = detections.bbox[i]
+            if isinstance(detections, OBB):
+                x, y, w, h = detections.bbox[i]
+                a = detections.angle[i]
+            else:
+                x1, y1, x2, y2 = detections.bbox[i]
+                x, y, w, h = (x1 + x2) / 2, (y1 + y2) / 2, x2 - x1, y2 - y1
+                a = 0.0
 
-            if isinstance(detections, Detections) or isinstance(detections, InstanceSegments):
+            if isinstance(detections, Detections) or isinstance(detections, InstanceSegments) or isinstance(detections, OBB):
                 class_id = detections.class_id[i] if detections.class_id is not None else None
                 idx = class_id if class_id is not None else i
             else:  # Poses
@@ -364,15 +371,16 @@ class Annotator:
             # Draw rectangle with possible rounded edges and infill
             self.rounded_rectangle(
                 frame.image,
-                x1,
-                y1,
-                x2,
-                y2,
-                c.as_bgr(),
-                self.thickness,
-                alpha,
-                corner_radius,
-                corner_length,
+                x=x,
+                y=y,
+                w=w,
+                h=h,
+                a=a,
+                color=c.as_bgr(),
+                thickness=self.thickness,
+                alpha=alpha,
+                corner_radius=corner_radius,
+                corner_length=corner_length,
             )
 
             if skip_label:
@@ -381,97 +389,150 @@ class Annotator:
             label = f"{class_id}" if (labels is None or len(detections) != len(labels)) else labels[i]
             self.set_label(
                 image=frame.image,
-                x=x1 - math.ceil(self.thickness / 2),
-                y=y1 - math.ceil(self.thickness / 2),
+                x=x - w/2 - math.ceil(self.thickness / 2),
+                y=y - h/2 - math.ceil(self.thickness / 2),
                 color=c.as_bgr(),
                 label=label,
             )
 
         return frame.image
 
+    @staticmethod
+    def _rotate_local_point(px: float, py: float, x: float, y: float, a: float) -> Tuple[int, int]:
+        # Local points use image coordinates where y+ means down; this matches the rotation math in OBB.
+        x_rot = px * math.cos(a) - py * math.sin(a) + x
+        y_rot = px * math.sin(a) + py * math.cos(a) + y
+        return int(round(x_rot)), int(round(y_rot))
+
+    @staticmethod
+    def _arc_points(
+        cx: float,
+        cy: float,
+        r: float,
+        start_theta: float,
+        end_theta: float,
+        num: int,
+    ) -> List[Tuple[float, float]]:
+        thetas = np.linspace(start_theta, end_theta, num=num, endpoint=True)
+        return [(cx + r * float(math.cos(t)), cy + r * float(math.sin(t))) for t in thetas]
+
     def rounded_rectangle(
         self,
         image: np.ndarray,
-        x1: int,
-        y1: int,
-        x2: int,
-        y2: int,
+        x: float,
+        y: float,
+        w: float,
+        h: float,
+        a: float,
         color: Tuple[int, int, int],
         thickness: int,
         alpha: float = None,
         corner_radius: int = 0,
         corner_length: int = 0,
-    ):
+    ) -> np.ndarray:
         """
-        Draws a rectangle with possible rounded edges and infill.
+        Draws a (potentially rotated) rectangle with possible rounded edges and infill.
 
         Args:
             image: The input image as a NumPy array.
-            x1: X-coordinate of the top-left corner of the rectangle.
-            y1: Y-coordinate of the top-left corner of the rectangle.
-            x2: X-coordinate of the bottom-right corner of the rectangle.
-            y2: Y-coordinate of the bottom-right corner of the rectangle.
+            x: X-coordinate of the rectangle center.
+            y: Y-coordinate of the rectangle center.
+            w: Width of the rectangle (center-based).
+            h: Height of the rectangle (center-based).
+            a: Rotation angle in radians. Positive values rotate clockwise in image coordinates.
             color: BGR color for bounding box edges and fill.
             thickness: Thickness of the rectangle edges. Defaults to 2.
             alpha: Transparency of the rectangle fill, between 0.0 and 1.0. Defaults to 0.5.
             corner_radius: Radius of the rectangle corners. Defaults to 5.
             corner_length: Length of the rectangle corners if `corner_radius` is 0. Defaults to 10.
+
+        Returns:
+            The annotated image.
         """
+        half_w = w / 2.0
+        half_h = h / 2.0
+        left, right = -half_w, half_w
+        top, bottom = -half_h, half_h
 
-        inner_pts = [
-            (x1 + corner_radius, y1 + corner_radius),
-            (x2 - corner_radius, y1 + corner_radius),
-            (x2 - corner_radius, y2 - corner_radius),
-            (x1 + corner_radius, y2 - corner_radius),
-        ]
-
+        # Clamp radii/length so they remain meaningful for the given rectangle size.
+        max_radius = int(max(0, min(half_w, half_h)))
+        corner_radius = max(0, min(corner_radius, max_radius))
         if corner_length and not corner_radius:
+            corner_length = max(0, min(corner_length, int(min(half_w, half_h))))
+
+        # Corner-marks mode: only draw L-shaped corners (when corner_radius == 0).
+        if corner_length and not corner_radius:
+            inner_pts = [(left, top), (right, top), (right, bottom), (left, bottom)]
             outer_pts = [
                 # Top-left corner
-                [(x1, y1), (x1 + corner_length, y1)],
-                [(x1, y1), (x1, y1 + corner_length)],
+                [(left, top), (left + corner_length, top)],
+                [(left, top), (left, top + corner_length)],
                 # Top-right corner
-                [(x2, y1), (x2, y1 + corner_length)],
-                [(x2, y1), (x2 - corner_length, y1)],
+                [(right, top), (right, top + corner_length)],
+                [(right, top), (right - corner_length, top)],
                 # Bottom-right corner
-                [(x2, y2), (x2 - corner_length, y2)],
-                [(x2, y2), (x2, y2 - corner_length)],
+                [(right, bottom), (right - corner_length, bottom)],
+                [(right, bottom), (right, bottom - corner_length)],
                 # Bottom-left corner
-                [(x1, y2), (x1, y2 - corner_length)],
-                [(x1, y2), (x1 + corner_length, y2)],
+                [(left, bottom), (left, bottom - corner_length)],
+                [(left, bottom), (left + corner_length, bottom)],
             ]
+
+            if alpha is not None and alpha > 0:
+                overlay = image.copy()
+                corner_pts_local = np.array(
+                    [pt for i in range(4) for pt in (inner_pts[i], *outer_pts[i * len(outer_pts) // 4])], dtype=np.float32
+                )
+                corner_pts = np.array([self._rotate_local_point(px, py, x, y, a) for px, py in corner_pts_local], dtype=np.int32)
+                cv2.fillPoly(overlay, [corner_pts], color=color)
+                cv2.addWeighted(overlay, alpha, image, 1 - alpha, 0, image)
+
+            for (pt1x, pt1y), (pt2x, pt2y) in outer_pts:
+                cv2.line(image, self._rotate_local_point(pt1x, pt1y, x, y, a), self._rotate_local_point(pt2x, pt2y, x, y, a), color, thickness)
+            return image
+
+        # Build the rounded-rectangle outline in local coordinates (unrotated).
+        if corner_radius > 0:
+            cr = float(corner_radius)
+            arc_steps = max(8, int(math.ceil(cr)))
+
+            # Clockwise order starting at top edge after the top-left arc.
+            outline_local: List[Tuple[float, float]] = []
+            outline_local.append((left + cr, top))  # P0
+            outline_local.append((right - cr, top))  # P1
+
+            # Top-right arc: (-pi/2 -> 0)
+            center_tr = (right - cr, top + cr)
+            outline_local.extend(self._arc_points(center_tr[0], center_tr[1], cr, -math.pi / 2, 0, arc_steps)[1:])
+            outline_local.append((right, bottom - cr))  # P3
+
+            # Bottom-right arc: (0 -> pi/2)
+            center_br = (right - cr, bottom - cr)
+            outline_local.extend(self._arc_points(center_br[0], center_br[1], cr, 0, math.pi / 2, arc_steps)[1:])
+            outline_local.append((left + cr, bottom))  # P5
+
+            # Bottom-left arc: (pi/2 -> pi)
+            center_bl = (left + cr, bottom - cr)
+            outline_local.extend(self._arc_points(center_bl[0], center_bl[1], cr, math.pi / 2, math.pi, arc_steps)[1:])
+            outline_local.append((left, top + cr))  # P7
+
+            # Top-left arc: (pi -> 3pi/2) => ends back at P0
+            center_tl = (left + cr, top + cr)
+            outline_local.extend(self._arc_points(center_tl[0], center_tl[1], cr, math.pi, 3 * math.pi / 2, arc_steps)[1:])
         else:
-            outer_pts = [
-                [(x1 + corner_radius, y1), (x2 - corner_radius, y1)],
-                [(x2, y1 + corner_radius), (x2, y2 - corner_radius)],
-                [(x2 - corner_radius, y2), (x1 + corner_radius, y2)],
-                [(x1, y2 - corner_radius), (x1, y1 + corner_radius)],
-            ]
+            # Sharp rectangle outline
+            outline_local = [(left, top), (right, top), (right, bottom), (left, bottom)]
 
-        if alpha:
-            # Create the cross corner points
+        outline_pts = np.array([self._rotate_local_point(px, py, x, y, a) for px, py in outline_local], dtype=np.int32)
+
+        if alpha is not None and alpha > 0:
             overlay = image.copy()
-            corner_pts = np.array(
-                [pt for i in range(4) for pt in (inner_pts[i], *outer_pts[i * len(outer_pts) // 4])], np.int32
-            )
-            cv2.fillPoly(overlay, [corner_pts], color=color)
-
-            if corner_radius:
-                for i, angle in enumerate([180, 270, 0, 90]):
-                    cv2.ellipse(
-                        overlay, inner_pts[i], (corner_radius, corner_radius), angle, 0, 90, color, thickness=cv2.FILLED
-                    )
-
+            cv2.fillPoly(overlay, [outline_pts], color=color)
             cv2.addWeighted(overlay, alpha, image, 1 - alpha, 0, image)
 
-        # Draw the straight border lines
-        for pt1, pt2 in outer_pts:
-            cv2.line(image, pt1, pt2, color, thickness)
+        cv2.polylines(image, [outline_pts], isClosed=True, color=color, thickness=thickness)
 
-        # Draw the rounded corners
-        if corner_radius:
-            for i, angle in enumerate([180, 270, 0, 90]):
-                cv2.ellipse(image, inner_pts[i], (corner_radius, corner_radius), angle, 0, 90, color, thickness)
+        return image
 
     def annotate_area(
         self, frame: Frame, area: Area, color: Tuple[int, int, int], label: Optional[str] = None, alpha: float = None
@@ -487,7 +548,7 @@ class Annotator:
             alpha: Transparency of the area fill, between 0.0 and 1.0. Defaults to 0.5.
 
         Returns:
-            The annotated frame image.
+            The annotated frame.image
 
         Example:
             ```python
@@ -516,7 +577,7 @@ class Annotator:
 
         return frame.image
 
-    def set_label(self, image: np.ndarray, x: int, y: int, color: Tuple[int, int, int], label: str):
+    def set_label(self, image: np.ndarray, x: int, y: int, color: Tuple[int, int, int], label: str) -> np.ndarray:
         """
         Draws text labels on the frame with background using the provided text and position.
 
@@ -526,6 +587,9 @@ class Annotator:
             y: Y-coordinate for the label position.
             color: BGR color for the label background.
             label: The text to display.
+
+        Returns:
+            The annotated image.
 
         Example:
             ```python
@@ -554,8 +618,8 @@ class Annotator:
         # Draw background rectangle
         cv2.rectangle(
             img=image,
-            pt1=(text_background_x1, text_background_y1),
-            pt2=(text_background_x2, text_background_y2),
+            pt1=(int(text_background_x1), int(text_background_y1)),
+            pt2=(int(text_background_x2), int(text_background_y2)),
             color=color,
             thickness=cv2.FILLED,
         )
@@ -564,13 +628,15 @@ class Annotator:
         cv2.putText(
             img=image,
             text=label,
-            org=(text_x, text_y),
+            org=(int(text_x), int(text_y)),
             fontFace=font,
             fontScale=self.text_scale,
             color=Color(*color[::-1]).contrast_color().as_bgr(),
             thickness=self.text_thickness,
             lineType=cv2.LINE_AA,
         )
+
+        return image
 
     def annotate_segments(self, frame: Frame, segments: Segments) -> np.ndarray:
         """
@@ -581,7 +647,7 @@ class Annotator:
             segments: The segments defining the areas that will be drawn on the image, must be of type `Segments` from `modlib.models.results`.
 
         Returns:
-            The annotated frame image.
+            The annotated frame.image
 
         Example:
             ```python
@@ -612,61 +678,6 @@ class Annotator:
 
         return frame.image
 
-    def annotate_oriented_boxes(
-        self,
-        frame: Frame,
-        instance_segments: InstanceSegments,
-        labels: Optional[List[str]] = None,
-        skip_label: bool = False,
-        color: Union[Color, ColorPalette] = None,
-    ) -> np.ndarray:
-        """
-        Draws orientated bounding boxes on the frame using the detections provided.
-
-        Args:
-            frame: The frame to annotate, must be of type `Frame` from `modlib.devices`.
-            instance_segments: The oriented bounding box data, must be of type `InstanceSegments` from `modlib.models.results`.
-            labels: A list of labels for each detection. Defaults to `None`, in which case `class_id` is used.
-            skip_label: Whether to skip drawing labels on the bounding boxes. Defaults to `False`.
-            color: RGB color for bounding box edges and fill. Defaults to `None`.
-
-        Returns:
-            The annotated frame.image with orientated bounding boxes.
-        """
-        if not isinstance(instance_segments, InstanceSegments):
-            raise ValueError("Instance segments must be of type InstanceSegments.")
-        if frame.image_type != IMAGE_TYPE.INPUT_TENSOR:
-            instance_segments.compensate_for_roi(frame.roi)
-
-        for i in range(len(instance_segments)):
-            bbox = instance_segments.bbox[i]
-            class_id = instance_segments.class_id[i] if instance_segments.class_id is not None else None
-            idx = class_id if class_id is not None else i
-
-            if color is None:
-                c = self.color.by_idx(idx) if isinstance(self.color, ColorPalette) else self.color
-            else:
-                c = color
-
-            # Rescaling to frame size
-            bbox[:, 0] *= frame.width
-            bbox[:, 1] *= frame.height
-            bbox = bbox.astype(np.int32)
-
-            cv2.drawContours(frame.image, [bbox], 0, c.as_bgr(), 2)
-
-            if skip_label:
-                continue
-            label = f"{class_id}" if (labels is None or len(instance_segments) != len(labels)) else labels[i]
-            self.set_label(
-                image=frame.image,
-                x=bbox[0][0] - math.ceil(self.thickness / 2),
-                y=bbox[0][1] - math.ceil(self.thickness / 2),
-                color=c.as_bgr(),
-                label=label,
-            )
-        return frame.image
-
     def annotate_instance_segments(self, frame: Frame, instance_segments: InstanceSegments) -> np.ndarray:
         """
         Draws instance segmentation areas on the frame using the provided instance segments.
@@ -677,6 +688,11 @@ class Annotator:
 
         Returns:
             The annotated frame.image
+
+        Example:
+            ```python
+            annotator.annotate_instance_segments(frame, instance_segments)
+            ```
         """
 
         if not isinstance(instance_segments, InstanceSegments):
@@ -686,12 +702,20 @@ class Annotator:
 
         h, w, _ = frame.image.shape
         overlay = np.zeros((h, w, 4), dtype=np.uint8)
+        mask_h, mask_w = instance_segments.mask_shape
+        bbox = instance_segments.bbox
+        mask_crops = instance_segments.mask_crops
 
-        for i in range(len(instance_segments)):
-            mask = instance_segments.mask[i]
+        for i in range(len(mask_crops)):
+            yi1, yi2, xi1, xi2 = InstanceSegments._bbox_to_slices(bbox[i], mask_h, mask_w)
+            crop = np.asarray(mask_crops[i], dtype=np.uint8)
+            ch, cw = yi2 - yi1, xi2 - xi1
+            if ch <= 0 or cw <= 0 or crop.shape != (ch, cw):
+                continue
             c = self.color.by_idx(instance_segments.class_id[i]) if isinstance(self.color, ColorPalette) else self.color
             colour = [(0, 0, 0, 0), (*c.as_bgr(), 255)]
-            overlay_i = np.array(colour)[mask].astype(np.uint8)
+            overlay_i = np.zeros((mask_h, mask_w, 4), dtype=np.uint8)
+            overlay_i[yi1:yi2, xi1:xi2] = np.array(colour)[crop].astype(np.uint8)
             overlay += cv2.resize(overlay_i, (w, h))
 
         overlay[:, :, -1][overlay[:, :, -1] == 255] = 150
@@ -737,11 +761,11 @@ class Annotator:
             keypoint_score_threshold: The minimum score threshold for keypoints to be drawn. Keypoints with a score below this threshold will not be drawn. Defaults to 0.5.
 
         Returns:
-            The annotated frame image.
+            The annotated frame.image
 
         Example:
             ```python
-            frame.image = annotator.annotate_keypoints(frame=frame, poses=poses)
+            annotator.annotate_keypoints(frame=frame, poses=poses)
             ```
         """
 
@@ -806,26 +830,67 @@ class Annotator:
         return image[y1:y2, x1:x2]
 
 
+
+def _scale_xyxy(
+    dets: Union[Detections, Poses, InstanceSegments],
+    h: int,
+    w: int,
+) -> Union[Detections, Poses, InstanceSegments]:
+    # Scale bboxes to frame size
+    scaled_bboxes = np.zeros_like(dets.bbox, dtype=int)
+    scaled_bboxes[:, 0] = (dets.bbox[:, 0] * w).astype(int)
+    scaled_bboxes[:, 1] = (dets.bbox[:, 1] * h).astype(int)
+    scaled_bboxes[:, 2] = (dets.bbox[:, 2] * w).astype(int)
+    scaled_bboxes[:, 3] = (dets.bbox[:, 3] * h).astype(int)
+    dets.bbox = scaled_bboxes
+    return dets
+
+
+def _scale_xywha(
+    dets: OBB,
+    h: int,
+    w: int,
+) -> OBB:
+    # OBB stores (cx, cy, bw, bh, angle). Under anisotropic scaling (sx != sy),
+    # side lengths and orientation must be transformed geometrically.
+    scaled_bboxes = np.zeros_like(dets.bbox, dtype=int)
+    scaled_bboxes[:, 0] = (dets.bbox[:, 0] * w).astype(int)
+    scaled_bboxes[:, 1] = (dets.bbox[:, 1] * h).astype(int)
+
+    # u: Width-axis unit vector u=(cos(a), sin(a)) after anisotropic scaling.
+    # v: Height-axis unit vector v=(-sin(a), cos(a)) after anisotropic scaling.
+    ux = np.cos(dets.angle) * w
+    uy = np.sin(dets.angle) * h
+    vx = -np.sin(dets.angle) * w
+    vy = np.cos(dets.angle) * h
+
+    scaled_bboxes[:, 2] = (dets.bbox[:, 2] * np.sqrt(ux**2 + uy**2)).astype(int)
+    scaled_bboxes[:, 3] = (dets.bbox[:, 3] * np.sqrt(vx**2 + vy**2)).astype(int)
+    dets.bbox = scaled_bboxes
+    dets.angle = np.arctan2(uy, ux).astype(np.float32)
+    return dets
+
+
 def scale_bboxes(
-    detections: Detections,
+    detections: Union[Detections, Poses, InstanceSegments, OBB],
     image_shape: Tuple[int, int, int],
     image_type: IMAGE_TYPE,
     roi: Tuple[float, float, float, float],
-) -> Detections:
+) -> Union[Detections, Poses, InstanceSegments, OBB]:
     """
-    Scale multiple bounding boxes from normalized coordinates to image frame size and return updated detections.
+    Scale multiple (oriented) bounding boxes from normalized coordinates to image frame size and return updated detections.
     If the input image is not an INPUT_TENSOR, compensates for any Region of Interest (ROI) applied during pre-processing,
     so that bounding boxes are correctly mapped back to the current frame.
     Typically, this happens for models that preserve aspect ratio.
 
     Args:
-        detections: Detections object with bounding boxes in normalized coordinates.
+        detections: Object with bounding boxes in normalized coordinates.
         image_shape: Tuple (height, width, _) representing the image shape.
         image_type: IMAGE_TYPE enum specifying the input image type.
         roi: ROI tuple specifying the region of interest (x, y, w, h).
 
     Returns:
-        Detections object with bounding boxes scaled to frame pixel coordinates.
+        Object with bounding boxes (and possibly angles) scaled to frame pixel coordinates.
     """
 
     # Copy detections so as not to mutate the input
@@ -838,11 +903,15 @@ def scale_bboxes(
         # image_ratio = w / h
         dets.compensate_for_roi(roi)
 
-    # Scale bboxes to frame size
-    scaled_bboxes = np.zeros_like(dets.bbox, dtype=int)
-    scaled_bboxes[:, 0] = (dets.bbox[:, 0] * w).astype(int)
-    scaled_bboxes[:, 1] = (dets.bbox[:, 1] * h).astype(int)
-    scaled_bboxes[:, 2] = (dets.bbox[:, 2] * w).astype(int)
-    scaled_bboxes[:, 3] = (dets.bbox[:, 3] * h).astype(int)
-    dets.bbox = scaled_bboxes
-    return dets
+    if (
+        isinstance(detections, Detections)
+        or isinstance(detections, Poses)
+        or isinstance(detections, InstanceSegments)
+    ):
+        return _scale_xyxy(dets, h, w)
+    elif isinstance(detections, OBB):
+        return _scale_xywha(dets, h, w)
+    else:
+        raise ValueError(
+            "Input `detections` should be of type Detections, Poses, InstanceSegments, or OBB that contain bboxes"
+        )
