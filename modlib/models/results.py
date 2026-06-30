@@ -15,11 +15,11 @@
 #
 
 import base64
-import gzip
 import copy
+import gzip
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
-from typing import Iterator, List, Tuple, Union
+from typing import Iterator, List, Optional, Sequence, Tuple, Union
 
 import cv2
 import numpy as np
@@ -57,6 +57,26 @@ class ROI:
         Iterates over the ROI. (left, top, width, height)
         """
         return iter((self.left, self.top, self.width, self.height))
+
+    def _as_roi(self, other) -> "ROI":
+        if isinstance(other, ROI):
+            return other
+        elif isinstance(other, (tuple, list)) and len(other) == 4:
+            return ROI(left=float(other[0]), top=float(other[1]), width=float(other[2]), height=float(other[3]))
+        else:
+            raise ValueError(f"Invalid type or format: {type(other)}, {other}")
+
+    def __eq__(self, other: "ROI") -> bool:
+        other = self._as_roi(other)
+        return (
+            self.left == other.left and
+            self.top == other.top and
+            self.width == other.width and
+            self.height == other.height
+        )
+
+    def __ne__(self, other: "ROI") -> bool:
+        return not self == other
 
 
 class Result(ABC):
@@ -276,6 +296,7 @@ class Detections(Result):
         self.bbox[:, 1] = roi[1] + self.bbox[:, 1] * roi[3]
         self.bbox[:, 2] = roi[0] + self.bbox[:, 2] * roi[2]
         self.bbox[:, 3] = roi[1] + self.bbox[:, 3] * roi[3]
+        self.bbox = np.clip(self.bbox, 0, 1)
 
         self._roi_compensated = True
 
@@ -485,12 +506,14 @@ class Poses(Result):
 
         self.keypoints[:, :, 0] = roi[0] + self.keypoints[:, :, 0] * roi[2]
         self.keypoints[:, :, 1] = roi[1] + self.keypoints[:, :, 1] * roi[3]
+        self.keypoints = np.clip(self.keypoints, 0, 1)
 
         if self._bbox is not None:
             self._bbox[:, 0] = roi[0] + self._bbox[:, 0] * roi[2]
             self._bbox[:, 1] = roi[1] + self._bbox[:, 1] * roi[3]
             self._bbox[:, 2] = roi[0] + self._bbox[:, 2] * roi[2]
             self._bbox[:, 3] = roi[1] + self._bbox[:, 3] * roi[3]
+            self._bbox = np.clip(self._bbox, 0, 1)
 
         self._roi_compensated = True
 
@@ -502,7 +525,7 @@ class Poses(Result):
         if self._bbox is not None:
             return self._bbox
         elif self.n_detections == 0:
-            return None
+            return np.empty((0, 4))
         else:
             # Create bounding box around the outer keypoints
             kpts = self.keypoints.reshape(self.n_detections, -1, 2)  # (N, 17, 2)
@@ -680,7 +703,7 @@ class Segments(Result):
             delta_w = min(w - start_w, out_w - out_start_w)
 
             # create compensated output mask
-            new_masks = np.zeros((out_h, out_w), dtype=self.mask.dtype)
+            new_masks = np.full((out_h, out_w), 255, dtype=self.mask.dtype)
             new_masks[out_start_h : out_start_h + delta_h, out_start_w : out_start_w + delta_w] = self.mask[
                 start_h : start_h + delta_h, start_w : start_w + delta_w
             ]
@@ -858,22 +881,174 @@ class Segments(Result):
 class InstanceSegments(Result):
     """
     Data class for instance segmentation results.
+
+    Instance masks are stored internally as bbox-cropped 2D uint8 arrays for memory efficiency.
     """
 
-    mask: np.ndarray  #: Mask arrays containing the id for each identified segment.
-    bbox: np.ndarray  #: Bounding boxes for each instance.
+    bbox: np.ndarray  #: Bounding boxes for each instance (normalized `x1, y1, x2, y2`).
     class_id: np.ndarray  #: Class ids for each instance.
     confidence: np.ndarray  #: Confidence scores for each instance.
     tracker_id: np.ndarray  #: Tracker ids for each instance.
+    mask_shape: Tuple[int, int]  #: Full canvas shape `(H, W)`.
 
-    def __init__(self, mask: np.ndarray = np.empty((0,)), bbox=None, confidence=None, class_id=None):
-        self.mask = mask.astype(np.uint8)
-        self._bbox = bbox
-        self.class_id = class_id
-        self.confidence = confidence
+    def __init__(
+        self,
+        mask: Union[np.ndarray, List[np.ndarray]],
+        confidence: np.ndarray,
+        class_id: np.ndarray,
+        bbox: Optional[np.ndarray] = None,
+        mask_shape: Optional[Tuple[int, int]] = None,
+    ):
+        """
+        Initialize the InstanceSegments object.
+
+        Args:
+            mask: Either a dense `(N, H, W)` stack (converted to cropped storage), or a list of
+                cropped 2D masks per instance (requires `bbox` and `mask_shape`).
+            confidence: Per-instance confidence scores.
+            class_id: Per-instance class ids.
+            bbox: `(N, 4)` normalized `x1, y1, x2, y2`. Required when `mask` is a list of crops.
+            mask_shape: Full canvas shape `(H, W)`. Required when `mask` is a list of crops.
+        """
         self.tracker_id = None
-
         self._roi_compensated = False
+
+        # Empty default / explicit empty
+        if (isinstance(mask, np.ndarray) and mask.size == 0) or (isinstance(mask, list) and len(mask) == 0):
+            self._mask_crops = []
+            self.mask_shape = mask_shape if mask_shape is not None else (0, 0)
+            self._bbox = np.empty((0, 4), dtype=np.float32)
+            self.class_id = np.empty((0,), dtype=np.int32)
+            self.confidence = np.empty((0,), dtype=np.float32)
+            return
+
+        if isinstance(mask, list):
+            if bbox is None or mask_shape is None:
+                raise ValueError("When mask is a list of cropped arrays, both bbox and mask_shape are required.")
+            self._mask_crops = [np.asarray(m, dtype=np.uint8, order="C") for m in mask]
+            self.mask_shape = (int(mask_shape[0]), int(mask_shape[1]))
+            self._bbox = np.asarray(bbox, dtype=np.float32)
+            if self._bbox.shape[0] != len(self._mask_crops):
+                raise ValueError("bbox length must match number of cropped masks.")
+            self.class_id = np.asarray(class_id, dtype=np.int32)
+            self.confidence = np.asarray(confidence, dtype=np.float32)
+            return
+
+        elif isinstance(mask, np.ndarray):
+            dense = mask.astype(np.uint8, copy=False)
+            if dense.ndim == 2:
+                dense = dense[None, ...]
+            if dense.ndim != 3:
+                raise ValueError(f"Dense mask must have shape (N, H, W), got {dense.shape}")
+
+            self.mask_shape = (int(dense.shape[1]), int(dense.shape[2]))
+            bbox_arr = np.asarray(bbox, dtype=np.float32) if bbox is not None else None
+            if bbox_arr is None or bbox_arr.shape != (dense.shape[0], 4):
+                bbox_arr = InstanceSegments._bbox_from_dense_masks(dense)
+            self._bbox = bbox_arr.astype(np.float32, copy=False)
+            self._mask_crops = InstanceSegments.compress_mask(dense, self._bbox)
+            self.class_id = np.asarray(class_id, dtype=np.int32)
+            self.confidence = np.asarray(confidence, dtype=np.float32)
+
+        else:
+            raise TypeError(f"mask must be ndarray or list of ndarrays, got {type(mask)}")
+
+    @staticmethod
+    def _bbox_to_slices(b: np.ndarray, height: int, width: int) -> Tuple[int, int, int, int]:
+        """Convert normalized `x1,y1,x2,y2` to integer slice bounds `y1,y2,x1,x2` inclusive-exclusive."""
+        x1, y1, x2, y2 = float(b[0]) * width, float(b[1]) * height, float(b[2]) * width, float(b[3]) * height
+        xi1 = int(np.clip(np.floor(x1), 0, width))
+        yi1 = int(np.clip(np.floor(y1), 0, height))
+        xi2 = int(np.clip(np.ceil(x2), 0, width))
+        yi2 = int(np.clip(np.ceil(y2), 0, height))
+        if xi2 <= xi1:
+            xi2 = min(width, xi1 + 1)
+        if yi2 <= yi1:
+            yi2 = min(height, yi1 + 1)
+        return yi1, yi2, xi1, xi2
+
+    def compress_mask(mask: np.ndarray, bbox: np.ndarray) -> List[np.ndarray]:
+        """
+        Crop each instance mask to the corresponding normalized bounding box region.
+
+        Args:
+            mask: Dense masks of shape `(N, H, W)` (uint8).
+            bbox: Array of shape `(N, 4)` with normalized `x1, y1, x2, y2`.
+
+        Returns:
+            List of length `N` of cropped 2D uint8 masks.
+        """
+        if mask.ndim != 3:
+            raise ValueError(f"compress_mask expects mask of shape (N, H, W), got {mask.shape}")
+        n, height, width = mask.shape
+        bbox = np.asarray(bbox, dtype=np.float32)
+        if bbox.shape != (n, 4):
+            raise ValueError(f"bbox must have shape ({n}, 4), got {bbox.shape}")
+        mask_u8 = mask.astype(np.uint8, copy=False)
+        crops: List[np.ndarray] = []
+        for i in range(n):
+            yi1, yi2, xi1, xi2 = InstanceSegments._bbox_to_slices(bbox[i], height, width)
+            crops.append(np.ascontiguousarray(mask_u8[i, yi1:yi2, xi1:xi2]))
+        return crops
+
+    @staticmethod
+    def decompress_mask(masks: Sequence[np.ndarray], bbox: np.ndarray, mask_shape: Tuple[int, int]) -> np.ndarray:
+        """
+        Place cropped instance masks back onto a dense `(N, H, W)` canvas.
+
+        Args:
+            masks: Sequence of `N` cropped 2D uint8 masks (must match `compress_mask` geometry).
+            bbox: `(N, 4)` normalized `x1, y1, x2, y2` used when cropping.
+            mask_shape: Full canvas shape `(H, W)`.
+
+        Returns:
+            Dense array of shape `(N, H, W)` uint8.
+        """
+        height, width = int(mask_shape[0]), int(mask_shape[1])
+        bbox = np.asarray(bbox, dtype=np.float32)
+        n = bbox.shape[0]
+        if len(masks) != n:
+            raise ValueError(f"Expected {n} cropped masks, got {len(masks)}")
+        out = np.zeros((n, height, width), dtype=np.uint8)
+        for i in range(n):
+            yi1, yi2, xi1, xi2 = InstanceSegments._bbox_to_slices(bbox[i], height, width)
+            crop = np.asarray(masks[i], dtype=np.uint8)
+            ch, cw = yi2 - yi1, xi2 - xi1
+            if crop.shape == (ch, cw):
+                out[i, yi1:yi2, xi1:xi2] = crop
+            else:
+                raise ValueError(f"Cropped mask shape {crop.shape} does not match bbox slice ({ch}, {cw}) for instance {i}")
+        return out
+
+    @staticmethod
+    def _bbox_from_dense_masks(mask: np.ndarray) -> np.ndarray:
+        """Infer normalized `x1,y1,x2,y2` boxes from dense instance masks."""
+        _, height, width = mask.shape
+        rows = []
+        for m in mask.astype(np.uint8, copy=False):
+            contours, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if len(contours) == 0:
+                rows.append((0.0, 0.0, 0.0, 0.0))
+            else:
+                x, y, w, h = cv2.boundingRect(contours[0])
+                rows.append((x / width, y / height, (x + w) / width, (y + h) / height))
+        return np.asarray(rows, dtype=np.float32)
+
+    @property
+    def mask_crops(self) -> List[np.ndarray]:
+        """Internal per-instance cropped masks (read-only copy of references; do not mutate in place)."""
+        return self._mask_crops
+
+    @property
+    def mask(self) -> np.ndarray:
+        """
+        Dense instance masks of shape `(N, H, W)` reconstructed from cropped storage.
+
+        Note: This allocates a full `(N, H, W)` array when called.
+        """
+        if len(self._mask_crops) == 0:
+            return np.empty((0,), dtype=np.uint8)
+        return InstanceSegments.decompress_mask(self._mask_crops, self._bbox, self.mask_shape)
 
     def compensate_for_roi(self, roi: ROI):
         """
@@ -885,30 +1060,27 @@ class InstanceSegments(Result):
         if roi == (0, 0, 1, 1) or self._roi_compensated:
             return
 
-        # initialize as background values and place mask(s) at ROI offset
-        if self.mask.size > 0:
-            n, h, w = self.mask.shape
+        if len(self._mask_crops) > 0 and self._bbox is not None:
+            h, w = self.mask_shape
             out_h, out_w = int(h / roi[3]), int(w / roi[2])
             h_start, w_start = int(roi[1] * h / roi[3]), int(roi[0] * w / roi[2])
 
-            # starting offsets for resulting and input masks
-            start_h, start_w = max(0, -h_start), max(0, -w_start)
-            out_start_h, out_start_w = max(0, h_start), max(0, w_start)
-            delta_h = min(h - start_h, out_h - out_start_h)
-            delta_w = min(w - start_w, out_w - out_start_w)
+            slices = np.asarray([InstanceSegments._bbox_to_slices(b, h, w) for b in self._bbox], dtype=np.int32)
+            by1 = slices[:, 0] + h_start
+            by2 = slices[:, 1] + h_start
+            bx1 = slices[:, 2] + w_start
+            bx2 = slices[:, 3] + w_start
 
-            # create compensated output mask
-            new_masks = np.zeros((n, out_h, out_w), dtype=self.mask.dtype)
-            new_masks[:, out_start_h : out_start_h + delta_h, out_start_w : out_start_w + delta_w] = self.mask[
-                :, start_h : start_h + delta_h, start_w : start_w + delta_w
-            ]
-            self.mask = new_masks
+            # Keep coords inside slice edges so floor/ceil in _bbox_to_slices reproduces exact ints.
+            eps = 1e-4
+            new_bbox = np.empty_like(self._bbox, dtype=np.float32)
+            new_bbox[:, 0] = np.where(bx1 <= 0, 0.0, (bx1 + eps) / out_w)
+            new_bbox[:, 1] = np.where(by1 <= 0, 0.0, (by1 + eps) / out_h)
+            new_bbox[:, 2] = np.where(bx2 >= out_w, 1.0, (bx2 - eps) / out_w)
+            new_bbox[:, 3] = np.where(by2 >= out_h, 1.0, (by2 - eps) / out_h)
 
-        if self._bbox is not None:
-            self._bbox[:, 0] = roi[0] + self._bbox[:, 0] * roi[2]
-            self._bbox[:, 1] = roi[1] + self._bbox[:, 1] * roi[3]
-            self._bbox[:, 2] = roi[0] + self._bbox[:, 2] * roi[2]
-            self._bbox[:, 3] = roi[1] + self._bbox[:, 3] * roi[3]
+            self.mask_shape = (out_h, out_w)
+            self._bbox = new_bbox.astype(np.float32, copy=False)
 
         self._roi_compensated = True
 
@@ -926,84 +1098,87 @@ class InstanceSegments(Result):
         """
         return self.class_id
 
-    def oriented_bbox(self) -> np.ndarray:
+    def oriented_bbox(self) -> "OBB":
         """
-        Calculate oriented bounding boxes for each instance mask. Can't be used in tracker
+        Calculate oriented bounding boxes for each instance mask.
 
         Returns:
-            A numpy array (N, 4, 2) containing the bounding box corner points for each instance.
-            Each bounding box is represented as a 4x2 array of normalized corner coordinates (x, y) in the range [0, 1].
-            Returns None if there are no masks.
+            An OBB object with the oriented bounding boxes of the instance segments.
         """
-        if len(self.mask) == 0:
-            return None
-        else:
-            oriented_bboxes = []
-            _, height, width = self.mask.shape
-            for mask in self.mask:
-                # Find contours of the mask
-                contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                if len(contours) == 0:
-                    continue
+        if len(self._mask_crops) == 0:
+            return OBB()
 
-                # Calculate normalized oriented bounding box
-                rect = cv2.minAreaRect(contours[0])
-                box_points = cv2.boxPoints(rect)
-                box_points[:, 0] /= width
-                box_points[:, 1] /= height
+        height, width = self.mask_shape
+        obb_bboxes = []
+        obb_angles = []
+        valid_indices = []
 
-                oriented_bboxes.append(box_points)
-            return np.array(oriented_bboxes)
+        for idx, crop in enumerate(self._mask_crops):
+            contours, _ = cv2.findContours(crop.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if len(contours) == 0:
+                continue
+
+            contour = max(contours, key=cv2.contourArea)
+            (cx, cy), (w_rect, h_rect), angle = cv2.minAreaRect(contour)
+            a = angle * np.pi / 180.0
+
+            yi1, yi2, xi1, xi2 = InstanceSegments._bbox_to_slices(self._bbox[idx], height, width)
+            gx = xi1 + cx
+            gy = yi1 + cy
+
+            obb_bboxes.append((gx / width, gy / height, w_rect / width, h_rect / height))
+            obb_angles.append(a)
+            valid_indices.append(idx)
+
+        if len(valid_indices) == 0:
+            return OBB()
+
+        obb = OBB(
+            bbox=np.asarray(obb_bboxes, dtype=np.float32),
+            confidence=np.asarray(self.confidence)[valid_indices],
+            class_id=np.asarray(self.class_id)[valid_indices],
+            angle=np.asarray(obb_angles, dtype=np.float32),
+        )
+        if self.tracker_id is not None:
+            obb.tracker_id = np.asarray(self.tracker_id)[valid_indices]
+        obb._roi_compensated = self._roi_compensated
+
+        return obb
 
     @property
     def bbox(self) -> np.ndarray:
         """
-        Calculate bounding boxes for each instance mask.
+        Bounding boxes for each instance.
 
         Returns:
-            A numpy array of shape (N, 4) containing the bounding boxes.
-            For normal bounding boxes: (x, y, w, h)
+            A numpy array of shape `(N, 4)` with normalized `x1, y1, x2, y2`.
         """
 
+        if len(self._mask_crops) == 0:
+            self._bbox = np.empty((0, 4), dtype=np.float32)
+            return self._bbox
         if self._bbox is not None:
             return self._bbox
-        elif len(self.mask) == 0:
-            self._bbox = np.empty((0, 4))
-            return self._bbox
-        else:
-            _bbox = []
-            _, height, width = self.mask.shape
-            for mask in self.mask:
-                # Find contours of the mask
-                contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                if len(contours) == 0:
-                    continue
-                # Calculate normal bounding box
-                x, y, w, h = cv2.boundingRect(contours[0])
-                _bbox.append((x / width, y / height, (x + w) / width, (y + h) / height))
-            self._bbox = np.array(_bbox)
-            return self._bbox
+        raise RuntimeError("InstanceSegments has masks but bbox is unset; provide bbox when using cropped masks.")
 
     @bbox.setter
     def bbox(self, value):
-        self._bbox = value
+        self._bbox = np.asarray(value, dtype=np.float32) if value is not None else None
 
     def __len__(self):
-        if self.mask is not None:
-            return len(self.mask)
-        else:
-            return 0
+        return len(self._mask_crops)
 
     def __iter__(self) -> Iterator[Tuple[np.ndarray, int, np.ndarray, int]]:
         """
         Iterate over the instance segments.
         """
+        dense = self.mask
         for i in range(len(self)):
             yield (
-                self.mask[i] if self.mask is not None else None,
+                dense[i],
                 self.class_id[i] if self.class_id is not None else None,
                 self.confidence[i] if self.confidence is not None else None,
-                self.bbox[i] if self.bbox is not None else None,
+                self.bbox[i] if self._bbox is not None and len(self._bbox) > i else None,
                 self.tracker_id[i] if self.tracker_id is not None else None,
             )
 
@@ -1019,19 +1194,23 @@ class InstanceSegments(Result):
             s += f"class_id:\t {self.class_id}, \tconfidence:\t {self.confidence}, \tbbox_shape: {self.bbox.shape}"
         if self.tracker_id is not None and self.tracker_id.shape == self.class_id.shape:
             s += f", \ttrack_ids:\t {self.tracker_id}"
-        if self.mask is not None:
-            s += f"\tmask:\t {self.mask.shape}"
+        n = len(self._mask_crops)
+        if n > 0:
+            s += f"\tmask:\t (n={n}, *{self.mask_shape})"
+        else:
+            s += "\tmask:\t empty"
         return s + ")"
 
     def __copy__(self):
         """
         Returns a copy of the current detections.
         """
-        new_instance = InstanceSegments()
-        new_instance.mask = np.copy(self.mask)
-        new_instance.bbox = np.copy(self.bbox)
-        new_instance.confidence = np.copy(self.confidence)
+        new_instance = InstanceSegments.__new__(InstanceSegments)
+        new_instance._mask_crops = [np.copy(c) for c in self._mask_crops]
+        new_instance.mask_shape = self.mask_shape
+        new_instance._bbox = np.copy(self._bbox) if self._bbox is not None else None
         new_instance.class_id = np.copy(self.class_id)
+        new_instance.confidence = np.copy(self.confidence)
         new_instance.tracker_id = np.copy(self.tracker_id) if self.tracker_id is not None else None
         new_instance._roi_compensated = copy.copy(self._roi_compensated)
         return new_instance
@@ -1053,15 +1232,25 @@ class InstanceSegments(Result):
             A new InstanceSegments object with the selected detections.
         """
         if isinstance(index, int):
-            index = [index]
+            idxs = [index]
+        elif isinstance(index, slice):
+            idxs = list(range(len(self._mask_crops)))[index]
+        elif isinstance(index, np.ndarray):
+            idxs = np.flatnonzero(index).tolist()
+        elif isinstance(index, tuple):
+            idxs = list(index)
+        else:
+            idxs = list(index)
 
-        res = self.copy()
-        res.mask = self.mask[index]
-        res.confidence = self.confidence[index]
-        res.class_id = self.class_id[index]
-        res.bbox = self.bbox[index] if self.bbox is not None else None
-        res.tracker_id = self.tracker_id[index] if self.tracker_id is not None else None
-        return res
+        new_instance = InstanceSegments.__new__(InstanceSegments)
+        new_instance._mask_crops = [self._mask_crops[i] for i in idxs]
+        new_instance.mask_shape = self.mask_shape
+        new_instance._bbox = self._bbox[idxs] if self._bbox is not None else None
+        new_instance.class_id = self.class_id[idxs]
+        new_instance.confidence = self.confidence[idxs]
+        new_instance.tracker_id = self.tracker_id[idxs] if self.tracker_id is not None else None
+        new_instance._roi_compensated = copy.copy(self._roi_compensated)
+        return new_instance
 
     def json(self) -> dict:
         """
@@ -1069,22 +1258,22 @@ class InstanceSegments(Result):
 
         Returns:
             A dictionary representation of the InstanceSegments object with the following keys:
-            - "n_segments" (int): Number of detected instance segments.
-            - "indices" (list): List of the index corresponding to each instance segment.
-            - "mask" (str): Mask array for each instance segment (compressed and base64 encoded).
+            - "n_segments" (int): Number of detected segments.
             - "mask_shape" (tuple): The shape of the mask.
+            - "mask_crops" (list): List of cropped masks (base64 encoded and gzip compressed).
             - "bbox" (list): The bounding box coordinates.
             - "confidence" (list): The confidence scores.
-            - "class_id" (list): The class IDs.
-            - "tracker_id" (list or None): The tracker IDs, or None if tracker_id is not set or its shape does not match.
+            - "class_id" (list): The class ids.
+            - "tracker_id" (list): The tracker ids.
             - "_roi_compensated" (bool): Whether the ROI has been compensated for.
         """
         return {
             "n_segments": self.n_segments,
-            "indices": self.indices.tolist(),
-            "mask": base64.b64encode(gzip.compress(self.mask.tobytes())).decode("utf-8"),
-            "mask_shape": self.mask.shape,
-            "bbox": self.bbox.tolist(),
+            "mask_shape": list(self.mask_shape),
+            "mask_crops": [
+                base64.b64encode(gzip.compress(np.ascontiguousarray(c).tobytes())).decode("utf-8") for c in self._mask_crops
+            ],
+            "bbox": self.bbox.tolist() if self._bbox is not None else [],
             "confidence": self.confidence.tolist(),
             "class_id": self.class_id.tolist(),
             "tracker_id": (
@@ -1106,23 +1295,24 @@ class InstanceSegments(Result):
         Returns:
             The InstanceSegments instance created from the JSON data.
         """
-        bbox = np.array(data["bbox"])
-        confidence = np.array(data["confidence"])
+        bbox = np.array(data["bbox"], dtype=np.float32)
+        confidence = np.array(data["confidence"], dtype=np.float32)
         class_id = np.array(data["class_id"])
         tracker_id = np.array(data["tracker_id"]) if data.get("tracker_id") is not None else None
+        mask_shape = (int(data["mask_shape"][0]), int(data["mask_shape"][1]))
 
-        # Decode and decompress the mask data
-        instance = cls(
-            mask=np.frombuffer(gzip.decompress(base64.b64decode(data["mask"])), dtype=np.uint8).reshape(
-                data["mask_shape"]
-            ),
-            bbox=bbox,
-            confidence=confidence,
-            class_id=class_id,
-        )
+        crops_decoded: List[np.ndarray] = []
+        h, w = mask_shape
+        for i, entry in enumerate(data["mask_crops"]):
+            yi1, yi2, xi1, xi2 = cls._bbox_to_slices(bbox[i], h, w)
+            flat = gzip.decompress(base64.b64decode(entry))
+            crop = np.frombuffer(flat, dtype=np.uint8).reshape((yi2 - yi1, xi2 - xi1))
+            crops_decoded.append(np.ascontiguousarray(crop))
+
+        instance = cls(mask=crops_decoded, bbox=bbox, confidence=confidence, class_id=class_id, mask_shape=mask_shape)
         if tracker_id is not None and len(tracker_id) > 0:
             instance.tracker_id = tracker_id
-        instance._roi_compensated = data["_roi_compensated"]
+        instance._roi_compensated = bool(data["_roi_compensated"])
         return instance
 
     def to_segments(self) -> "Segments":
@@ -1135,21 +1325,15 @@ class InstanceSegments(Result):
         Returns:
             A Segments object with a 2D mask containing class_ids for each pixel.
         """
-        # Handle empty masks
-        if len(self.mask) == 0:
+        if len(self._mask_crops) == 0:
             return Segments(mask=np.empty((0,)))
 
-        # Create weighted mask: multiply each instance mask by its confidence.
-        # And find the instance index with maximum confidence at each pixel.
-        weighted = self.mask.astype(np.float32) * self.confidence[:, None, None]  # (n_instances, height, width)
-        best_instance_idx = np.argmax(weighted, axis=0)  # (height, width)
-
-        # Create a mask indicating which pixels are covered by any instance.
-        # And map instance indices to class_ids, set background pixels to -1 (/255) for the uint8 array.
-        any_mask = np.any(self.mask > 0, axis=0)
+        dense = InstanceSegments.decompress_mask(self._mask_crops, self._bbox, self.mask_shape)
+        weighted = dense.astype(np.float32) * self.confidence[:, None, None]
+        best_instance_idx = np.argmax(weighted, axis=0)
+        any_mask = np.any(dense > 0, axis=0)
         output_mask = np.where(any_mask, self.class_id[best_instance_idx], -1).astype(np.uint8)
 
-        # Create Segments object and preserve ROI compensation state
         segments = Segments(mask=output_mask)
         segments._roi_compensated = self._roi_compensated
         return segments
@@ -1222,6 +1406,7 @@ class Anomaly(Result):
             - "score" (float): The anomaly score.
             - "heatmap" (str): The anomaly score heatmap (compressed and base64 encoded).
             - "heatmap_shape" (tuple): The shape of the heatmap.
+            - "_roi_compensated" (bool): Whether the ROI has been compensated for.
         """
         return {
             "score": self.score,
@@ -1250,3 +1435,167 @@ class Anomaly(Result):
         )
         instance._roi_compensated = data["_roi_compensated"]
         return instance
+
+
+
+class OBB(Result):
+    """
+    Data class for oriented bounding box (OBB) detections.
+    """
+
+    bbox: np.ndarray  #: Array of shape (n, 4) the bounding boxes [x, y, w, h] of N detections (xy are center points)
+    confidence: np.ndarray  #: Array of shape (n,) the confidence of N detections
+    class_id: np.ndarray  #: Array of shape (n,) the class id of N detections
+    angle: np.ndarray  #: Array of shape (n,) the angle of N detections
+    tracker_id: np.ndarray  #: Array of shape (n,) the tracker id of N detections
+
+    def __init__(self,
+        bbox: np.ndarray = np.empty((0, 4)),
+        confidence: np.ndarray = np.empty((0,)),
+        class_id: np.ndarray = np.empty((0,)),
+        angle: np.ndarray = np.empty((0,)),
+    ) -> None:
+        self.bbox = bbox
+        self.confidence = confidence
+        self.class_id = class_id
+        self.angle = angle
+        self.tracker_id = None
+
+        self._roi_compensated = False
+
+    def compensate_for_roi(self, roi: ROI):
+        """
+        Compensate the bounding boxes for the given ROI.
+
+        Args:
+            roi: The ROI (normalized - left, top, width, height) to compensate for.
+        """
+        if roi == (0, 0, 1, 1) or self._roi_compensated:
+            return
+
+        ux = np.cos(self.angle) * roi[2]
+        uy = np.sin(self.angle) * roi[3]
+        vx = -np.sin(self.angle) * roi[2]
+        vy = np.cos(self.angle) * roi[3]
+
+        self.angle = np.arctan2(uy, ux).astype(np.float32)
+        self.bbox[:, 0] = roi[0] + self.bbox[:, 0] * roi[2]
+        self.bbox[:, 1] = roi[1] + self.bbox[:, 1] * roi[3]
+        self.bbox[:, 2] = self.bbox[:, 2] * np.sqrt(ux**2 + uy**2)
+        self.bbox[:, 3] = self.bbox[:, 3] * np.sqrt(vx**2 + vy**2)
+        self.bbox = np.clip(self.bbox, 0, 1)
+
+        self._roi_compensated = True
+
+    def json(self) -> dict:
+        """
+        Convert the OBB object to a JSON-serializable dictionary.
+
+        Returns:
+            A dictionary representation of the OBB object with the following keys:
+            - "bbox" (list): The oriented bounding boxes [x, y, w, h].
+            - "confidence" (list): The confidence scores.
+            - "class_id" (list): The class IDs.
+            - "angle" (list): The orientation angles in radians.
+            - "tracker_id" (list or None): The tracker IDs, or None if tracker_id is not set or its shape does not match.
+            - "_roi_compensated" (bool): Whether the ROI has been compensated for.
+        """
+        return {
+            "bbox": self.bbox.tolist(),
+            "confidence": self.confidence.tolist(),
+            "class_id": self.class_id.tolist(),
+            "angle": self.angle.tolist(),
+            "tracker_id": (
+                self.tracker_id.tolist()
+                if self.tracker_id is not None and self.tracker_id.shape == self.class_id.shape
+                else None
+            ),
+            "_roi_compensated": self._roi_compensated,
+        }
+
+    @classmethod
+    def from_json(cls, data: dict) -> "OBB":
+        """
+        Create an OBB object from a JSON-serializable dictionary.
+
+        Args:
+            data: A dictionary representation of the OBB object.
+
+        Returns:
+            An instance of the OBB class.
+        """
+        bbox = np.array(data["bbox"])
+        confidence = np.array(data["confidence"])
+        class_id = np.array(data["class_id"])
+        angle = np.array(data["angle"])
+        tracker_id = np.array(data["tracker_id"]) if data.get("tracker_id") is not None else None
+
+        instance = cls(
+            bbox=bbox,
+            confidence=confidence,
+            class_id=class_id,
+            angle=angle,
+        )
+        if tracker_id is not None and len(tracker_id) > 0:
+            instance.tracker_id = tracker_id
+        instance._roi_compensated = data["_roi_compensated"]
+        return instance
+
+    def __len__(self) -> int:
+        """
+        Returns the number of OBB detections.
+        """
+        return len(self.class_id)
+
+    def __copy__(self) -> "OBB":
+        """
+        Returns a copy of the current OBB detections.
+        """
+        new_instance = OBB()
+        new_instance.bbox = np.copy(self.bbox)
+        new_instance.confidence = np.copy(self.confidence)
+        new_instance.class_id = np.copy(self.class_id)
+        new_instance.angle = np.copy(self.angle)
+        new_instance.tracker_id = np.copy(self.tracker_id) if self.tracker_id is not None else None
+        new_instance._roi_compensated = copy.copy(self._roi_compensated)
+        return new_instance
+
+    def copy(self) -> "OBB":
+        """
+        Returns a copy of the current OBB detections.
+        """
+        return self.__copy__()
+
+    def __getitem__(self, index: Union[int, slice, List[int], np.ndarray]) -> "OBB":
+        """
+        Returns a new OBB object with the selected OBB detections.
+
+        Args:
+            index: The index or indices of the OBB detections to select.
+
+        Returns:
+            A new OBB object with the selected OBB detections.
+        """
+        if isinstance(index, int):
+            index = [index]
+
+        res = self.copy()
+        res.confidence = self.confidence[index]
+        res.class_id = self.class_id[index]
+        res.bbox = self.bbox[index] if self.bbox is not None else None
+        res.angle = self.angle[index] if self.angle is not None else None
+        res.tracker_id = self.tracker_id[index] if self.tracker_id is not None else None
+        return res
+
+    def __iter__(self) -> Iterator[Tuple[np.ndarray, float, int, float, int]]:
+        """
+        To iterate over the OBB detections.
+        """
+        for i in range(len(self)):
+            yield (
+                self.bbox[i],
+                self.confidence[i],
+                self.class_id[i],
+                self.angle[i],
+                self.tracker_id[i] if self.tracker_id is not None else None,
+            )

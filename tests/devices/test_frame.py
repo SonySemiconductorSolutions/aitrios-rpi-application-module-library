@@ -66,10 +66,10 @@ def test_properties_and_setters(sample_frame: Frame):
     assert sample_frame.detections is new_detections
 
 
-def test_detections_unavailable_raises(sample_frame: Frame):
+def test_detections_unavailable_returns_none(sample_frame: Frame):
     sample_frame._detections = None
-    with pytest.raises(ValueError):
-        _ = sample_frame.detections
+    value = sample_frame.detections
+    assert value is None
 
 
 def test_json_roundtrip(sample_frame: Frame):

@@ -39,10 +39,9 @@ with device as stream:
     for frame in stream:
         detections = frame.detections.to_instance_segments(InstanceSegArgs)
 
-        labels = [f"{model.labels[c]}" for _, c, _, _, _ in detections]
+        labels = [f"{model.labels[c]}" for c in detections.class_id]
 
-        detections.bbox = detections.oriented_bbox()
-        annotator.annotate_oriented_boxes(frame, detections, labels)
+        annotator.annotate_boxes(frame, detections.oriented_bbox(), labels)
         annotator.annotate_instance_segments(frame, detections)
 
         frame.display()

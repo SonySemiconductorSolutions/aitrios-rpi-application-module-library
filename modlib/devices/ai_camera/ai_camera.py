@@ -39,6 +39,7 @@ from modlib.models import (
     Segments,
     InstanceSegments,
     Anomaly,
+    OBB,
 )
 from modlib.models.zoo import InputTensorOnly
 
@@ -725,7 +726,7 @@ class AiCamera(Device):
 
     def inject(
         self, dsp_input_tensor, max_retries=100
-    ) -> Union[Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly]:
+    ) -> Union[Classifications, Detections, Poses, Segments, InstanceSegments, Anomaly, OBB]:
         if max_retries <= 0:
             raise Exception("Max retries exceeded while trying to inject and find frame")
 

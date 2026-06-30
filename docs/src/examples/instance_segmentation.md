@@ -24,7 +24,6 @@ Below an example of how one can use a Segments models to produce Instance Segmen
 from modlib.apps import Annotator
 from modlib.devices import AiCamera
 from modlib.models.zoo import DeepLabV3Plus
-from modlib.devices.frame import IMAGE_TYPE
 
 
 class InstanceSegArgs:
@@ -45,15 +44,13 @@ annotator = Annotator()
 
 with device as stream:
     for frame in stream:
-        detections = frame.detections
-        if frame.image_type != IMAGE_TYPE.INPUT_TENSOR:
-            detections.compensate_for_roi(frame.roi)
-        instance_masks = detections.instance_segmentation(frame.width, frame.height, InstanceSegArgs)
-        oriented_bboxes = detections.oriented_bbox()
+        detections = frame.detections.to_instance_segments(InstanceSegArgs)
 
-        labels = [f"Class: {c}" for c, _, _, _ in detections]
+        labels = [f"{model.labels[c]}" for c in detections.class_id]
+
+        annotator.annotate_boxes(frame, detections.oriented_bbox(), labels)
         annotator.annotate_instance_segments(frame, detections)
-        annotator.annotate_oriented_boxes(frame, detections, labels)
+
         frame.display()
 ```
 Changing the `InstanceSegArgs` will allow you to fine-tune the algorithms for the situation. Enabling `config_mode` will allow you to visualize the effects of changing the different parameter values to see the difference the parameters make. 

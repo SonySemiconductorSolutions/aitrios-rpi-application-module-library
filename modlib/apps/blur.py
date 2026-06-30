@@ -48,7 +48,11 @@ def blur_object(frame: Frame, detections: Detections, intensity: Optional[int] =
     if detections.bbox.any():
         for detection in detections.bbox:
             x1, y1, x2, y2 = int(detection[0] * w), int(detection[1] * h), int(detection[2] * w), int(detection[3] * h)
+            x1, y1, x2, y2 = max(0, x1), max(0, y1), min(w, x2), min(h, y2)
             region = frame.image[y1:y2, x1:x2]
+            if region.size == 0:
+                continue
+
             blurred_region = cv2.blur(region, (intensity, intensity))
             frame.image[y1:y2, x1:x2] = blurred_region
 

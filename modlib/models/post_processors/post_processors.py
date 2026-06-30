@@ -626,7 +626,7 @@ def pp_segment(output_tensors: List[np.ndarray]) -> Segments:
 
 
 def pp_yolo_segment_ultralytics(
-    output_tensors: List[np.ndarray], input_tensor_sz: int = 640, max_detections: int = 10, threshold: float = 0.5
+    output_tensors: List[np.ndarray], input_tensor_sz: int = 640, max_detections: int = 300, threshold: float = 0.5
 ) -> InstanceSegments:
     """
     Performs post-processing on an Ultralytics YOLO-segments result tensor.
@@ -636,7 +636,7 @@ def pp_yolo_segment_ultralytics(
     Args:
         output_tensors: Resulting output tensors to be processed.
         input_tensor_sz: Input tensor size, default 640.
-        max_detections: Maximum number of detections, default is 10.
+        max_detections: Maximum number of detections, default is 300.
         threshold: Threshold value of filtering the mask, default is 0.5.
 
     Returns:
@@ -647,13 +647,16 @@ def pp_yolo_segment_ultralytics(
         x = np.array(x)  # Ensure x is a NumPy array for element-wise operations
         return np.where(x >= 0, 1 / (1 + np.exp(-x)), np.exp(x) / (1 + np.exp(x)))
 
-    n = len(np.array(output_tensors[2]))
-
-    boxes = output_tensors[0][:max_detections]
-    classes = output_tensors[2][:max_detections].astype(np.uint16)
-    scores = output_tensors[1][:max_detections]
-    mask_coeffs = output_tensors[3][:max_detections]
-    masks_proto = output_tensors[4][:n]
+    scores = np.asarray(output_tensors[1])
+    n = min(np.sum(scores > 0.0), max_detections)
+    if n == 0:
+        return InstanceSegments(mask=np.array([]), confidence=np.array([]), class_id=np.array([]))
+    
+    boxes = output_tensors[0][:n] / input_tensor_sz
+    classes = output_tensors[2][:n].astype(np.int32, copy=False)
+    scores = scores[:n].astype(np.float32, copy=False)
+    mask_coeffs = output_tensors[3][:n]
+    masks_proto = output_tensors[4]
 
     c, mh, mw = masks_proto.shape
     masks_proto_flattered = masks_proto.reshape(c, -1)
@@ -663,26 +666,18 @@ def pp_yolo_segment_ultralytics(
     binary_mask = (mask > threshold).astype(np.uint8)
 
     # crop
-    scale_x = mw / input_tensor_sz
-    scale_y = mh / input_tensor_sz
-    boxes_scaled = boxes.copy()
-    boxes_scaled[:, 0] *= scale_x
-    boxes_scaled[:, 1] *= scale_y
-    boxes_scaled[:, 2] *= scale_x
-    boxes_scaled[:, 3] *= scale_y
+    mask_crops: List[np.ndarray] = []
+    for i in range(n):
+        yi1, yi2, xi1, xi2 = InstanceSegments._bbox_to_slices(boxes[i], mh, mw)
+        mask_crops.append(binary_mask[i, yi1:yi2, xi1:xi2])
 
-    boxes_scaled = boxes_scaled.astype(int)
-
-    x1, y1, x2, y2 = np.split(boxes_scaled[:, :, None], 4, axis=1)
-
-    r = np.arange(mw, dtype=x1.dtype)[None, None, :]
-    c = np.arange(mh, dtype=x1.dtype)[None, :, None]
-
-    cropped_mask = binary_mask * ((r >= x1) & (r < x2) & (c >= y1) & (c < y2))
-
-    boxes /= input_tensor_sz
-
-    return InstanceSegments(mask=cropped_mask, bbox=boxes, class_id=classes, confidence=scores)
+    return InstanceSegments(
+        mask=mask_crops,
+        bbox=boxes,
+        mask_shape=(mh, mw),
+        class_id=classes,
+        confidence=scores
+    )
 
 
 def pp_anomaly(output_tensors: List[np.ndarray]) -> Anomaly:

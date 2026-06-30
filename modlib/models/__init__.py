@@ -15,5 +15,5 @@
 #
 
 from .model import COLOR_FORMAT, MODEL_TYPE, FRAMEWORK_FORMAT, TASK_TYPE, Model
-from .results import ROI, Anomaly, Classifications, Detections, Poses, Segments, InstanceSegments
+from .results import ROI, Anomaly, Classifications, Detections, Poses, Segments, InstanceSegments, OBB
 from .pre_processors import model_preprocess

@@ -6,6 +6,26 @@ sidebar_position: 6
 
 # Release Notes 🚀
 
+## Modlib 1.5.0
+
+### ⭐ **New Features**
+
+- **Oriented Bounding Boxes (OBB)**: Added `OBB` result type for oriented bounding boxes (normalized center box plus angle in radians). `Annotator.annotate_boxes` now renders both axis-aligned boxes from `Detections`, `Poses`, and `InstanceSegments`, and oriented boxes from `OBB` (including boxes produced by `InstanceSegments.oriented_bbox()`). Example: `./examples/aicam/yolo-obb.py`.
+- **Instance segmentation mask storage**: `InstanceSegments` stores each instance mask, cropped to the surrounding bounding box together with full-frame `mask_shape` `(H, W)`, instead of holding a dense full-frame mask `(N, H, W)` for every detection. Full-frame dense masks are built on demand via the `mask` property and related APIs where needed.
+
+
+### ❌ **Removed / Replaced**
+
+- **Oriented bounding box annotations**: `Annotator.annotate_oriented_boxes` has been removed in favour of `Annotator.annotate_boxes` which now supports the visualisation of both traditional bounding boxes (direct or derived from `Detections`, `Poses`, `InstanceSegments`) and also oriented bounding boxes from the `OBB` result type.
+
+
+### 🐛 **Bug Fixes**
+
+- **`blur_object` empty region**: Fixed crash when blurring a detection whose box, after ROI compensation and conversion to integer pixel coordinates, had empty areas (e.g. due to floating point rounding). Empty regions are skipped instead of passing them to the blur operation. And rounding inaccuracies are taken into account in `compensate_for_roi` methods. 
+- **Annotator return inconsistencies**: `Annotator` drawing methods (`annotate_boxes`, `annotate_area`, `annotate_segments`, `annotate_instance_segments`, `annotate_keypoints`) now consistently return the annotated `image`.
+- **Segments background value**: When expanding the mask for ROI compensation, padding outside the copied region is now filled with segment background `255` (`uint8`, `-1`), consistent with documented background; older versions used `0` here.
+
+
 ## Modlib 1.4.0
 
 ### ⭐ **New Features**
